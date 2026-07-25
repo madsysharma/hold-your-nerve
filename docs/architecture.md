@@ -3,10 +3,10 @@
 This page explains how the different components fit together. It is meant for someone who wants to understand or modify the system, and not just run it.
 
 
-
-
-
 ## The problem being modeled
+
+<img width="3437" height="3048" alt="Frame 7" src="https://github.com/user-attachments/assets/1a265f1a-c620-45bd-a6d2-44dc33235c02" />
+
 
 A neural co-processor is an implant that reads brain activity, decides a pattern of electrical stimulation and writes that stimulation back into the brain in order to restore lost function after injury, such as a stroke and the likes. The leading implementation of neural co-processors  (by Bryan et. al., 2023) involves a Co-processor Network (CPN) that trains its stimulation policy by backpropagating behavioral error through a pre-trained Emulator Network (EN), which is a learned model of how the brain responds to stimulation.
 

@@ -47,4 +47,4 @@ Be aware that training is genuinely slow. Runs of hundreds of thousands of epoch
 
 ## Team Members
 
-Heba, Madhuri, Ethan and Thejo. Agatha, Richard and Sean.
+Heba, Madhuri, Ethan and Thejo. Agatha (mentor), Richard and Sean (PIs).

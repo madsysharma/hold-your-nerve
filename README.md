@@ -44,3 +44,7 @@ Be aware that training is genuinely slow. Runs of hundreds of thousands of epoch
  
 - The testbed, the co-processor design, and most of the code under `experiment/` originate from the public `coproc-poc` repository by Bryan et al.
 - The simulated brain weights and the task dataset in `michaels/` were provided by Jonathan Michaels and are described in his 2020 PNAS paper on goal-driven modular neural networks. 
+
+## Team Members
+
+Heba, Madhuri, Ethan and Thejo. Agatha, Richard and Sean.

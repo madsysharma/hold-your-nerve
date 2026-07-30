@@ -2,7 +2,7 @@ import torch
 
 from cpn_utils import CPNENStats, calc_pred_loss, calc_train_loss, EpochType
 from experiment import lesion, utils
-
+from error_injection import apply_distributional_error
 STOP_PCT = 0.99
 MAX_EPOCHS = None
 
@@ -81,9 +81,14 @@ class CPNEpochCPN:
         if self.preds is None:
             self.preds = []
 
-    def forward(self, brain_data, loss_history, is_validation):
+    def forward(self, brain_data, loss_history, is_validation, drift_delta=0.0):
         batch_size = brain_data[0].shape[0]
         self.ensure_preds(batch_size)
+
+        # Apply distributional drift if specified
+        if drift_delta > 0.0:
+            drifted_obs = apply_distributional_error(brain_data[0], delta=drift_delta)
+            brain_data = (drifted_obs,) + brain_data[1:]
 
         cpn_in = torch.cat(brain_data, axis=1)
 

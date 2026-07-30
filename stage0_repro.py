@@ -325,6 +325,8 @@ def main():
     p.add_argument("--baseline-only", action="store_true",
                    help="Build everything and print the healthy/lesioned baselines, then "
                         "stop before training. Fast way to verify the setup.")
+    p.add_argument("--drift-delta", type=float, default=0.0,
+               help="Distributional error drift magnitude (sweep 0.0 to 0.4).")
     args = p.parse_args()
 
     device = resolve_device(args.device)

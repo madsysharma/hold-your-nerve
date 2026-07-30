@@ -2,8 +2,7 @@ import torch
 import torch.nn as nn
 
 class ErrorInjector: 
-    """Unified Interface for Injecting Emulator Errors."""
-
+"""Unified Interface for Injecting Emulator Errors."""
     @staticmethod
     def apply_param_error(model: nn.Module, sigma_p: float) -> nn.Module:
         """

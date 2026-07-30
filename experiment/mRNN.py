@@ -359,11 +359,11 @@ class MichaelsRNN(nn.Module):
         outputs = []
 
         for midx in range(self.num_modules):
-            if midx == drop_module_idx:
+            if midx == drop_module_idx: #skip over modules we dont care about
                 continue
 
             if drop_neuron_mask is not None:
-                po = self.prev_output * drop_neuron_mask.unsqueeze(0)
+                po = self.prev_output * drop_neuron_mask.unsqueeze(0) #drop unwanted neurons from previous output
             else:
                 po = self.prev_output
 
@@ -381,6 +381,26 @@ class MichaelsRNN(nn.Module):
         # 3-tuple, elements are (batch, obs.out_dim)
         # Possibly fewer than 3, if we are dropping modules
         return tuple(outputs)
+
+    def observe_module(self, obs_model, module_idx, drop_neuron_mask=None):
+        """
+        Like observe(), but for a single specified module, using whatever
+        obs_model is passed in. Notice no for loop
+        """
+        if drop_neuron_mask is not None:
+            po = self.prev_output * drop_neuron_mask.unsqueeze(0)
+        else:
+            po = self.prev_output
+
+        act = po[#activations for most recent time step for one module
+            :,
+            module_idx #slice to include all neurons from one module
+            * self.num_neurons_per_module : (module_idx + 1)
+            * self.num_neurons_per_module,
+        ]
+        out = obs_model(act)
+        assert out.shape == (self.prev_output.shape[0], obs_model.out_dim)
+        return out.detach()
 
     def unroll(self, data_in, cuda=None):
         """

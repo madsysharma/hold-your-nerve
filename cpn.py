@@ -75,9 +75,15 @@ class CPN_EN_CoProc(experiment.CoProc):
             cfg.observer_instance.stdevs = obs_stdevs
             print("Observer loaded as:", str(cfg.observer_instance))
 
-        en_in_dim = cfg.observer_instance.out_dim + stim_dim + 1
-        self.en, self.opt_en = stim_model.get_stim_model(
-            en_in_dim, out_dim, activation=cfg.en_activation, cuda=cfg.cuda
+        en_in_dim = cfg.observer_instance.out_dim + stim_dim + 1 #en trained on 20 MI electrodes (if MI isnt dropped) + 16 stimulation channels + trial end flag
+        #Predict muscle activations based on interplay between MI electrodes and stimulation
+        self.en, self.opt_en = stim_model.get_stim_model( #get_stim_model returns a untrained EN and optimizer
+            en_in_dim,
+            out_dim,
+            num_neurons=cfg.en_num_neurons, #pass in new parameters
+            activation=cfg.en_activation,
+            cuda=cfg.cuda,
+            cell_type=cfg.en_cell_type,
         )
 
         self.stims = None
@@ -151,10 +157,13 @@ class CPN_EN_CoProc(experiment.CoProc):
 
         self.reset_soft()
 
-    def forward(self, brain_data, loss_history):
+    def forward(self, brain_data, loss_history, en_obs_override=None): #added en_obs_override parameter
         if self.epoch_type in (EpochType.EN, EpochType.VAL_EN):
             new_stim = self.en_epoch.forward(
-                brain_data, loss_history, self.epoch_type == EpochType.VAL_EN
+                brain_data,
+                loss_history,
+                self.epoch_type == EpochType.VAL_EN,
+                en_obs_override=en_obs_override, #forward incorrect tensor of observations
             )
         elif self.epoch_type in (EpochType.CPN, EpochType.VAL_CPN):
             new_stim = self.cpn_epoch.forward(

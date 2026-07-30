@@ -23,8 +23,8 @@ g_logger = logging.getLogger("experiment")
 RECOV_MODEL_PATH = "experiment/recovered"
 
 
-@attr.s(auto_attribs=True)
-class EpochResult:
+@attr.s(auto_attribs=True) #basically just dataclass
+class EpochResult: #each epoch in EN mode: send stimuli to mike and update EN weights based on mike data
     stop: bool = False
     next_is_validation: bool = False
     user_data: stats.UserData = None
@@ -33,7 +33,7 @@ class EpochResult:
         return self.stop, self.next_is_validation, self.user_data
 
 
-def get_vanilla_config(cuda=None, **kwargs):
+def get_vanilla_config(cuda=None, **kwargs): #default lesion is severed F5-M1 and AIP-M1 paths
     return get_config(cuda=cuda, **kwargs)
 
 
@@ -144,25 +144,23 @@ def get_config(
     return cfg
 
 
-def get_raw_data(cuda=None, **kwargs):
-    # Just a passthrough, since 'experiment' is our simple interface
-    return config.get_data_raw(cuda=cuda**kwargs)
-
-
-class CoProc:
+class CoProc: #coprocessor template interface
     def reset(self):
         """
         Called at the start and continuation of a run.
         """
         pass
 
-    def forward(self, brain_data, loss_history):
+    def forward(self, brain_data, loss_history, en_obs_override=None):
         """
         Args:
             brain_data: 4-tuple (M1 data, F5 data, AIP data, trial_end signal)
                         The first three are Tensors (batch_size, cfg.observer_instance.out_dim)
                         The last is (batch_size, 1)
                         The sum of second dimensions is in_dim.
+            en_obs_override: None, or a Tensor(batch_size, cfg.observer_instance.out_dim)
+                        giving a second, independently-observed reading of M1
+                        buit with incorrect sigma assumption
         Returns:
                 the stim vector: Tensor(batch_size, stim_dim)
         """
@@ -238,7 +236,7 @@ class Experiment:
                         "for a lesion of type %s; looked for path %s"
                         % (str(cfg.lesion_instance), model_path)
                     )
-                raise
+                raise #generic exception
 
         elif mike_load_path is not None:
             self.mike.load_weights_from_file(mike_load_path)
@@ -252,9 +250,12 @@ class Experiment:
         self.opt_mike = AdamW(self.mike.parameters(), lr=1e-7)
 
         self.observer = cfg.observer_instance
+        #None unless en_obs_sigma was set
+        #generates the EN's deliberately incorrect view of M1.
+        self.en_observer = cfg.en_observer_instance
 
         (
-            self.comp_loss_healthy,
+            self.comp_loss_healthy, #for healthy and lesioned brain with no CPN, basline stats
             self.comp_loss_healthy_hand,
             self.comp_loss_lesioned,
             self.comp_loss_lesioned_hand,
@@ -271,7 +272,7 @@ class Experiment:
             self.var_within_healthy,
         )
 
-        assert not (cfg.drop_m1 and cfg.drop_f5), (
+        assert not (cfg.drop_m1 and cfg.drop_f5), ( #for if we only want aip
             "Can drop observations from "
             "only one module. File a feature request if you need more."
         )
@@ -356,10 +357,9 @@ class Experiment:
     def coproc(self):
         return self._coproc
 
-    def _coproc_forward(self, brain_data):
-        stim = self.coproc.forward(brain_data, self.loss_history)
+    def _coproc_forward(self, brain_data, en_obs_override=None):
+        stim = self.coproc.forward(brain_data, self.loss_history, en_obs_override=en_obs_override) #stimulate with data from incorrect structure if provided
 
-        # Un-pythonic to assert a type, but let's be strict here...
         if not isinstance(stim, torch.Tensor):
             raise TypeError("Stim vector must be a Tensor")
 
@@ -416,7 +416,17 @@ class Experiment:
                 )
                 obs = obs_raw + (trial_end[:, tidx, :],)
 
-                stim = self._coproc_forward(obs)
+                #use structurally incorrect observer (wrong sigma)
+                if self.en_observer is not None and self.obs_drop_module_idx != 0:
+                    en_obs_override = self.mike.observe_module(
+                        self.en_observer, #incorrect sigma baked in
+                        module_idx=0,
+                        drop_neuron_mask=self.drop_neuron_mask,
+                    )
+                else:
+                    en_obs_override = None
+
+                stim = self._coproc_forward(obs, en_obs_override=en_obs_override)
 
                 # new_stim will be cloned in here, to prevent accidentally
                 # backprop-ing through the "brain", aka mike.

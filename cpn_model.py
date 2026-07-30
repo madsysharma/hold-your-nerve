@@ -340,7 +340,9 @@ class CPNNoiseyLSTMCollection(nn.Module):
                 self.W[:noisey_cnt, :, :] += torch.normal(
                     0.0, stdev, (noisey_cnt, self.W.shape[1], self.W.shape[2])
                 )
-            self.grad_mask_W = torch.zeros(self.W.shape).cuda(self._cuda)
+            self.grad_mask_W = torch.zeros(self.W.shape)
+            if self._cuda is not None:
+                self.grad_mask_W = self.grad_mask_W.cuda(self._cuda)
             self.grad_mask_W[:noisey_cnt, :, :] = 1.0
 
             self.U = nn.Parameter(
@@ -354,7 +356,9 @@ class CPNNoiseyLSTMCollection(nn.Module):
                 self.U[:noisey_cnt, :, :] += torch.normal(
                     0.0, stdev, (noisey_cnt, self.U.shape[1], self.U.shape[2])
                 )
-            self.grad_mask_U = torch.zeros(self.U.shape).cuda(self._cuda)
+            self.grad_mask_U = torch.zeros(self.U.shape)
+            if self._cuda is not None:
+                self.grad_mask_U = self.grad_mask_U.cuda(self._cuda)
             self.grad_mask_U[:noisey_cnt, :, :] = 1.0
 
             self.bias = nn.Parameter(torch.Tensor(batch_size, self.num_neurons * 4))
@@ -366,7 +370,9 @@ class CPNNoiseyLSTMCollection(nn.Module):
                 self.bias[:noisey_cnt, :] += torch.normal(
                     0.0, stdev, (noisey_cnt, self.bias.shape[1])
                 )
-            self.grad_mask_bias = torch.zeros(self.bias.shape).cuda(self._cuda)
+            self.grad_mask_bias = torch.zeros(self.bias.shape)
+            if self._cuda is not None:
+                self.grad_mask_bias = self.grad_mask_bias.cuda(self._cuda)
             self.grad_mask_bias[:noisey_cnt, :] = 1.0
 
             # This one is harder... Need to re-implement fc...
@@ -383,7 +389,9 @@ class CPNNoiseyLSTMCollection(nn.Module):
                 self.fc_w[:noisey_cnt, :, :] += torch.normal(
                     0.0, stdev, (noisey_cnt, self.out_dim, self.num_neurons)
                 )
-            self.grad_mask_fc_w = torch.zeros(self.fc_w.shape).cuda(self._cuda)
+            self.grad_mask_fc_w = torch.zeros(self.fc_w.shape)
+            if self._cuda is not None:
+                self.grad_mask_fc_w = self.grad_mask_fc_w.cuda(self._cuda)
             self.grad_mask_fc_w[:noisey_cnt, :, :] = 1.0
 
             self.fc_b = nn.Parameter(torch.empty(batch_size, self.out_dim))
@@ -395,7 +403,9 @@ class CPNNoiseyLSTMCollection(nn.Module):
                 self.fc_b[:noisey_cnt, :] += torch.normal(
                     0.0, stdev, (noisey_cnt, self.out_dim)
                 )
-            self.grad_mask_fc_b = torch.zeros(self.fc_b.shape).cuda(self._cuda)
+            self.grad_mask_fc_b = torch.zeros(self.fc_b.shape)
+            if self._cuda is not None:
+                self.grad_mask_fc_b = self.grad_mask_fc_b.cuda(self._cuda)
             self.grad_mask_fc_b[:noisey_cnt, :] = 1.0
 
         # Used for dropping gradients on the ground.

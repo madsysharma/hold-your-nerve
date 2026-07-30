@@ -40,6 +40,9 @@ class Config:
     drop_neuron_mask: torch.Tensor
     cuda: typing.Any
     holdout_pct: float
+    en_num_neurons: typing.Optional[int] = None #new parameters, typing autosuggestions
+    en_cell_type: str = "lstm"
+    en_observer_instance: typing.Optional[observer.Observer] = None
 
     def shuffle_dataset(self):
         _, self.loader_train[0], self.loader_test[0] = get_dataset(
@@ -179,6 +182,9 @@ def get(
     drop_m1=False,
     drop_f5=False,
     cuda=None,
+    en_num_neurons=None, #new parameters
+    en_cell_type="lstm",
+    en_obs_sigma=None,
 ):
 
     if observer_type is observer.ObserverType.passthrough:
@@ -193,6 +199,27 @@ def get(
         )
     else:
         raise ValueError(f"Unrecognized observer type: {observer_type}")
+
+    # en_obs_sigma, when set, builds a SECOND observer with a different
+    # sigma, used only for the EN's view of M1 (see Experiment.run() /
+    # CPNEpochEN.forward()). This is what creates a genuine mismatch between
+    # what the EN was trained to assume and what the true environment/CPN
+    # actually see -- unlike obs_sigma, which changes the shared observer
+    # used by everything.
+    if en_obs_sigma is None:
+        en_observer_instance = None
+    elif observer_type in (
+        observer.ObserverType.gaussian,
+        observer.ObserverType.drifting_gaussian,
+    ):
+        en_observer_instance = observer_type.value(
+            num_neurons_per_module, out_dim=obs_out_dim, sigma=en_obs_sigma, cuda=cuda
+        )
+    else:
+        raise ValueError(
+            f"en_obs_sigma mismatch is only supported for gaussian observer "
+            f"types, got {observer_type}"
+        )
 
     if num_stim_neurons is None:
         num_stim_neurons = num_neurons_per_module
@@ -331,5 +358,8 @@ def get(
         drop_neuron_mask,
         cuda,
         holdout_pct,
+        en_num_neurons=en_num_neurons, #new parameters
+        en_cell_type=en_cell_type,
+        en_observer_instance=en_observer_instance,
     )
     return cfg_out

@@ -13,6 +13,7 @@ import cpn_epoch_en
 from cpn_utils import EpochType
 from experiment import experiment
 from experiment import observer
+from error_injection import ErrorInjector
 import stim_model
 
 MODEL_FILENAME_CPN = "cpn.model"
@@ -301,6 +302,8 @@ class CPN_EN_CoProc(experiment.CoProc):
 
                 if en_is_ready:
                     self.epoch_type = EpochType.CPN
+                    if getattr(self.cfg, "sigma_p", 0.0) > 0.0:
+                        ErrorInjector.apply_parametric_error(self.en, self.cfg.sigma_p)
                     self.cpn_epoch.set_en(self.en, self.opt_en)
 
                     for param in self.cpn.parameters():

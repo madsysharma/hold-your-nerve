@@ -40,6 +40,7 @@ class Config:
     drop_neuron_mask: torch.Tensor
     cuda: typing.Any
     holdout_pct: float
+    sigma_p: float = 0.0
 
     def shuffle_dataset(self):
         _, self.loader_train[0], self.loader_test[0] = get_dataset(
@@ -179,6 +180,7 @@ def get(
     drop_m1=False,
     drop_f5=False,
     cuda=None,
+    sigma_p= 0.0
 ):
 
     if observer_type is observer.ObserverType.passthrough:
@@ -331,5 +333,6 @@ def get(
         drop_neuron_mask,
         cuda,
         holdout_pct,
+        sigma_p,
     )
     return cfg_out

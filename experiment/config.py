@@ -43,6 +43,7 @@ class Config:
     en_num_neurons: typing.Optional[int] = None #new parameters, typing autosuggestions
     en_cell_type: str = "lstm"
     en_observer_instance: typing.Optional[observer.Observer] = None
+    sigma_p: float = 0.0
 
     def shuffle_dataset(self):
         _, self.loader_train[0], self.loader_test[0] = get_dataset(
@@ -185,6 +186,7 @@ def get(
     en_num_neurons=None, #new parameters
     en_cell_type="lstm",
     en_obs_sigma=None,
+    sigma_p=0.0,
 ):
 
     if observer_type is observer.ObserverType.passthrough:
@@ -361,5 +363,6 @@ def get(
         en_num_neurons=en_num_neurons, #new parameters
         en_cell_type=en_cell_type,
         en_observer_instance=en_observer_instance,
+        sigma_p=sigma_p,
     )
     return cfg_out

@@ -161,7 +161,7 @@ def resolve_coadapt(mode):
 
 
 def build_config(lesion_key, device, recover, coadapt, stim_sigma,
-                 num_stim_channels, stim_decay):
+                 num_stim_channels, stim_decay, sigma_p = 0.0):
     """Construct the repo Config for one lesion, using the repo's own builders.
 
     num_stim_channels and stim_decay are forwarded via **kwargs into config.get,
@@ -173,6 +173,7 @@ def build_config(lesion_key, device, recover, coadapt, stim_sigma,
         recover_after_lesion=recover,
         cuda=device,
         stim_sigma=stim_sigma,
+        sigma_p=sigma_p,
     )
     # Only inject a knob when explicitly set, so an unspecified flag leaves the repo
     # default untouched rather than pinning it to our value. This matters most for
@@ -325,6 +326,10 @@ def main():
     p.add_argument("--baseline-only", action="store_true",
                    help="Build everything and print the healthy/lesioned baselines, then "
                         "stop before training. Fast way to verify the setup.")
+    p.add_argument("--drift-delta", type=float, default=0.0,
+               help="Distributional error drift magnitude (sweep 0.0 to 0.4).")
+    p.add_argument("--sigma-p", type=float, default=0.0,
+               help="Parametric error scale sigma_p for distorting EN weights.")
     args = p.parse_args()
 
     device = resolve_device(args.device)

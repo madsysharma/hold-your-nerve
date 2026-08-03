@@ -1,8 +1,34 @@
 import torch
 import torch.nn as nn
+import stim_model #defines en architecture
 
-class ErrorInjector: 
+class ErrorInjector:
     """Unified Interface for Injecting Emulator Errors."""
+
+    @staticmethod #doesnt take self as a parameter
+    def build_structural_en(
+        in_dim, out_dim, num_neurons=None, cell_type="lstm",
+        activation=torch.nn.Tanh, cuda=None,
+    ):
+        """
+        Structural error: builds the EN with mismatched num_neurons 
+        and/or cell type (lstm/gru/vanilla)
+        """
+        return stim_model.get_stim_model(
+            in_dim, out_dim, num_neurons=num_neurons,
+            activation=activation, cuda=cuda, cell_type=cell_type,
+        )
+
+    @staticmethod
+    def apply_observation_mismatch(mike, obs_model, module_idx, drop_neuron_mask=None):
+        """
+        Structural error: gives the EN an observer for a mike module built with a
+        different sigma value
+        """
+        return mike.observe_module(
+            obs_model, module_idx, drop_neuron_mask=drop_neuron_mask
+        )
+
     @staticmethod
     def apply_param_error(model: nn.Module, sigma_p: float) -> nn.Module:
         """

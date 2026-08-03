@@ -7,6 +7,7 @@ import torch
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
+from error_injection import ErrorInjector
 
 # Local imports
 from . import class_stdevs
@@ -418,7 +419,8 @@ class Experiment:
 
                 #use structurally incorrect observer (wrong sigma)
                 if self.en_observer is not None and self.obs_drop_module_idx != 0:
-                    en_obs_override = self.mike.observe_module(
+                    en_obs_override = ErrorInjector.apply_observation_mismatch(
+                        self.mike,
                         self.en_observer, #incorrect sigma baked in
                         module_idx=0,
                         drop_neuron_mask=self.drop_neuron_mask,

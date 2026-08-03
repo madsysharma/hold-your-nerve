@@ -14,7 +14,6 @@ from cpn_utils import EpochType
 from experiment import experiment
 from experiment import observer
 from error_injection import ErrorInjector
-import stim_model
 
 MODEL_FILENAME_CPN = "cpn.model"
 MODEL_FILENAME_EN = "en.model"
@@ -78,7 +77,7 @@ class CPN_EN_CoProc(experiment.CoProc):
 
         en_in_dim = cfg.observer_instance.out_dim + stim_dim + 1 #en trained on 20 MI electrodes (if MI isnt dropped) + 16 stimulation channels + trial end flag
         #Predict muscle activations based on interplay between MI electrodes and stimulation
-        self.en, self.opt_en = stim_model.get_stim_model( #get_stim_model returns a untrained EN and optimizer
+        self.en, self.opt_en = ErrorInjector.build_structural_en( #returns an untrained EN (possibly structurally mismatched) and optimizer
             en_in_dim,
             out_dim,
             num_neurons=cfg.en_num_neurons, #pass in new parameters
@@ -312,7 +311,7 @@ class CPN_EN_CoProc(experiment.CoProc):
                 if en_is_ready:
                     self.epoch_type = EpochType.CPN
                     if getattr(self.cfg, "sigma_p", 0.0) > 0.0:
-                        ErrorInjector.apply_parametric_error(self.en, self.cfg.sigma_p)
+                        ErrorInjector.apply_param_error(self.en, self.cfg.sigma_p)
                     self.cpn_epoch.set_en(self.en, self.opt_en)
 
                     for param in self.cpn.parameters():

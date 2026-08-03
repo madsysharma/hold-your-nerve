@@ -3,7 +3,7 @@ import torch
 import cpn_model
 from cpn_utils import CPNENStats, calc_pred_loss, EpochType
 from experiment import utils
-import stim_model
+from error_injection import ErrorInjector
 
 
 class CPNEpochEN:
@@ -56,7 +56,7 @@ class CPNEpochEN:
         return self.en, self.opt_en
 
     def new_en(self, old_en):
-        en, opt_en = stim_model.get_stim_model(
+        en, opt_en = ErrorInjector.build_structural_en(
             old_en.in_dim,
             old_en.out_dim,
             num_neurons=old_en.num_neurons,

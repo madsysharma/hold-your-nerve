@@ -28,7 +28,7 @@ jobs:
     - name: Detect CUDA and Install Matching PyTorch
       run: |
         python -m pip install --upgrade pip
-        python -m pip install pytest
+        python -m pip install --no-cache-dir pytest numpy scipy attrs
         
         # 1. Check if NVIDIA tools exist on the system
         if command -v nvcc &> /dev/null; then
@@ -41,7 +41,7 @@ jobs:
           echo "Targeting PyTorch Wheel Index Tag: $WHL_TAG"
           
           # Install PyTorch using the dynamically parsed tag
-          python -m pip install torch --index-url "https://pytorch.org/whl/{WHL_TAG}"
+          python -m pip install --no-cache-dir torch --index-url "https://pytorch.org/whl/{WHL_TAG}"
           
         elif command -v nvidia-smi &> /dev/null; then
           # Fallback check via nvidia-smi if driver is active but toolkit path isn't exposed
@@ -49,11 +49,11 @@ jobs:
           echo "Detected CUDA Driver Version: $CUDA_VERSION"
           
           WHL_TAG="cu$(echo $CUDA_VERSION | tr -d '.')"
-          python -m pip install torch --index-url "https://pytorch.org/whl/{WHL_TAG}"
+          python -m pip install --no-cache-dir torch --index-url "https://pytorch.org/whl/{WHL_TAG}"
           
         else
           echo "No local CUDA environment found. Defaulting to CPU-optimized PyTorch build."
-          python -m pip install torch --index-url https://pytorch.org/whl/cpu
+          python -m pip install --no-cache-dir torch
         fi
       shell: bash
 

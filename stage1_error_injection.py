@@ -200,6 +200,19 @@ def main():
     if args.error == "structural" and args.en_num_neurons is None and args.en_cell_type is None:
         raise SystemExit("--error structural requires --en-num-neurons and/or --en-cell-type.")
 
+    # Error-injection runs are EXPECTED to hold true recovery below --stop-pct
+    # (that is what the error does). Without an epoch cap the run then never
+    # reaches the stop threshold and trains indefinitely. Warn and suggest a cap.
+    if args.error != "none" and args.max_epochs is None:
+        print(
+            "WARNING: --error " + args.error + " is injected but --max-epochs is "
+            "not set. The injected error is expected to keep true recovery below "
+            "--stop-pct (" + str(args.stop_pct) + "), so this run may never reach "
+            "the stop threshold and will train indefinitely. Set --max-epochs to "
+            "cap it and measure the (degraded) recovery, e.g. --max-epochs 2000.",
+            flush=True,
+        )
+
     device = resolve_device(args.device)
     os.makedirs(args.log_dir, exist_ok=True)
     floor_per_lesion, floor_fallback = parse_en_ready_floor(args.en_ready_floor)

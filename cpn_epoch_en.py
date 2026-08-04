@@ -3,7 +3,7 @@ import torch
 import cpn_model
 from cpn_utils import CPNENStats, calc_pred_loss, EpochType
 from experiment import utils
-import stim_model
+from error_injection import ErrorInjector
 
 
 class CPNEpochEN:
@@ -56,12 +56,13 @@ class CPNEpochEN:
         return self.en, self.opt_en
 
     def new_en(self, old_en):
-        en, opt_en = stim_model.get_stim_model(
+        en, opt_en = ErrorInjector.build_structural_en(
             old_en.in_dim,
             old_en.out_dim,
             num_neurons=old_en.num_neurons,
             activation=old_en.activation_func_t,
             cuda=self.cfg.cuda,
+            cell_type=self.cfg.en_cell_type,
         )
         return en, opt_en
 
@@ -80,7 +81,8 @@ class CPNEpochEN:
         if self.preds is None:
             self.preds = []
 
-    def forward(self, brain_data, loss_history, is_validation, stim=None):
+    #give en_obs_override to use observations from EN with mismatched sigma 
+    def forward(self, brain_data, loss_history, is_validation, stim=None, en_obs_override=None):
         batch_size = brain_data[0].shape[0]
         self.ensure_preds(batch_size)
 
@@ -97,7 +99,8 @@ class CPNEpochEN:
 
         # en receives (obs, stims, trial_end)
         # (detaching just in case; we don't want to backprop here)
-        new_obs_en = brain_data[0]
+        #give en_obs_override to use observations from EN with mismatched sigma 
+        new_obs_en = brain_data[0] if en_obs_override is None else en_obs_override
         en_in = torch.cat((new_obs_en, new_stim, brain_data[-1]), axis=1)
         cur_pred = self.en(en_in)
 

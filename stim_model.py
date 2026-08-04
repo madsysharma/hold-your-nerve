@@ -8,13 +8,23 @@ from experiment import utils
 
 
 def get_stim_model(
-    in_dim, out_dim, num_neurons=None, activation=torch.nn.Tanh, cuda=None
+    in_dim, out_dim, num_neurons=None, activation=torch.nn.Tanh, cuda=None,
+    cell_type="lstm",
 ):
-
+#control if we use num_neurons or default 
     if num_neurons is None:
         num_neurons = in_dim + 50
+#control model type
+    if cell_type == "lstm":
+        model_cls = StimModelLSTM
+    elif cell_type == "gru":
+        model_cls = StimModelGRU
+    elif cell_type == "rnn":
+        model_cls = StimModelRNN
+    else:
+        raise ValueError(f"Unrecognized cell_type: {cell_type}")
 
-    en = StimModelLSTM(
+    en = model_cls(
         in_dim,
         out_dim,
         num_neurons=num_neurons,
@@ -122,6 +132,14 @@ class StimModel(nn.Module):
 
 
 class StimModelLSTM(utils.LSTMModel):
+    pass
+
+
+class StimModelGRU(utils.GRUModel):
+    pass
+
+
+class StimModelRNN(utils.VanillaRNNModel):
     pass
 
 

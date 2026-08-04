@@ -81,14 +81,9 @@ class CPNEpochCPN:
         if self.preds is None:
             self.preds = []
 
-    def forward(self, brain_data, loss_history, is_validation, drift_delta=0.0):
+    def forward(self, brain_data, loss_history, is_validation):
         batch_size = brain_data[0].shape[0]
         self.ensure_preds(batch_size)
-
-        # Apply distributional drift if specified
-        if drift_delta > 0.0:
-            drifted_obs = ErrorInjector.apply_distributional_error(brain_data[0], delta=drift_delta)
-            brain_data = (drifted_obs,) + brain_data[1:]
 
         cpn_in = torch.cat(brain_data, axis=1)
 

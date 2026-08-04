@@ -125,7 +125,19 @@ class CPN_EN_CoProc(experiment.CoProc):
         #     Each item is a stim or obs
         self.saved_data = []
 
+        # Distributional (state-hook) support: once True, the EN is kept stale
+        # (no recycling), so it stays inaccurate on the drifted brain.
+        self._en_frozen = False
+
         self.reset_soft()
+
+    def freeze_en(self):
+        """Pin the EN after distributional drift is injected: stop recycling so
+        it stays stale relative to the drifted brain. Self-triggered at the
+        EN->CPN handoff below when cfg.drift_delta > 0."""
+        self._en_frozen = True
+        for param in self.en.parameters():
+            param.requires_grad = False
 
     def reset_soft(self):
         self.stims = []
@@ -303,7 +315,9 @@ class CPN_EN_CoProc(experiment.CoProc):
             else:
                 self.epoch_type = EpochType.EN
 
-            if len(self.saved_data) == self.recycle_thresh and not en_is_ready:
+            if (not self._en_frozen
+                    and len(self.saved_data) == self.recycle_thresh
+                    and not en_is_ready):
                 en_is_ready = self.train_en_closed_loop(
                     loss_history, user_data, next_is_validation
                 )
@@ -336,6 +350,9 @@ class CPN_EN_CoProc(experiment.CoProc):
                     self.epoch_type = EpochType.VAL_CPN
                 else:
                     self.epoch_type = EpochType.CPN
+            elif self._en_frozen:
+                # EN is deliberately stale: stay in CPN, do not recycle it.
+                self.epoch_type = EpochType.CPN
             else:
                 for param in self.cpn.parameters():
                     param.requires_grad = False
@@ -344,6 +361,15 @@ class CPN_EN_CoProc(experiment.CoProc):
 
                 self.epoch_type = EpochType.EN
                 next_is_validation = False
+
+        # Distributional-error handoff: first time we enter CPN training, the EN
+        # is converged on the pre-drift brain. If cfg.drift_delta > 0, freeze it
+        # so it stays stale while the Experiment run loop drifts the brain at
+        # this same handoff. Fires once.
+        if (not self._en_frozen
+                and getattr(self.cfg, "drift_delta", 0.0) > 0.0
+                and self.epoch_type in (EpochType.CPN, EpochType.VAL_CPN)):
+            self.freeze_en()
 
         result = experiment.EpochResult(
             we_are_done,

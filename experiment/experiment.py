@@ -18,6 +18,9 @@ from . import michaels_load
 from . import mRNN
 from . import utils
 
+# For distributional (state-hook) drift: detect the EN->CPN handoff.
+from cpn_utils import EpochType
+
 g_logger = logging.getLogger("experiment")
 
 # Rel path pointing to a pre-recovered mRNN
@@ -463,6 +466,25 @@ class Experiment:
             # Pass the loss back to the user, who can decide what to
             # do now.
             result = self._coproc_finish(self.loss_history)
+
+            # --- Distributional-error injection (once, at EN->CPN handoff) ---
+            # The first time the co-processor enters CPN training, the EN is
+            # frozen on the pre-drift brain (cpn.py freezes it at this handoff).
+            # Drift the brain now via a forward hook on self.mike, so the CPN is
+            # trained/evaluated against a stale EN.
+            if (getattr(self.cfg, "drift_delta", 0.0) > 0.0
+                    and not getattr(self, "_drift_injected", False)
+                    and self.coproc.epoch_type in (EpochType.CPN, EpochType.VAL_CPN)):
+                from error_injection import ErrorInjector
+                ErrorInjector.apply_dist_error(
+                    self.mike,
+                    delta=self.cfg.drift_delta,
+                    k=getattr(self.cfg, "drift_k", 8),
+                    seed=getattr(self.cfg, "drift_seed", 42),
+                    mode="onset",
+                )
+                self._drift_injected = True
+            # ----------------------------------------------------------------
             should_stop, next_is_validation, user_data = result.unpack()
 
             if self.cfg.coadapt and (

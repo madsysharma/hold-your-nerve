@@ -25,18 +25,35 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Install Dependencies and PyTorch
+    - name: Detect CUDA and Install Matching PyTorch
       run: |
         python -m pip install --upgrade pip
-        python -m pip install pytest numpy scipy pandas attrs
+        python -m pip install pytest
         
-        # Check if an NVIDIA GPU driver is available on the machine
-        if command -v nvidia-smi &> /dev/null; then
-          echo "CUDA hardware detected! Installing PyTorch with CUDA support."
-          python -m pip install torch --index-url https://pytorch.org
+        # 1. Check if NVIDIA tools exist on the system
+        if command -v nvcc &> /dev/null; then
+          # Extract major and minor version numbers (e.g., 12.1 or 13.2)
+          CUDA_VERSION=$(nvcc --version | grep -oP 'release \K[0-9]+\.[0-9]+' || nvcc --version | grep -o 'release [0-9]\+\.[0-9]\+' | cut -d' ' -f2)
+          echo "Detected CUDA Toolkit Version: $CUDA_VERSION"
+          
+          # Clean periods to match PyTorch wheels format (e.g., 12.1 -> cu121, 13.2 -> cu132)
+          WHL_TAG="cu$(echo $CUDA_VERSION | tr -d '.')"
+          echo "Targeting PyTorch Wheel Index Tag: $WHL_TAG"
+          
+          # Install PyTorch using the dynamically parsed tag
+          python -m pip install torch --index-url "https://pytorch.org/whl/{WHL_TAG}"
+          
+        elif command -v nvidia-smi &> /dev/null; then
+          # Fallback check via nvidia-smi if driver is active but toolkit path isn't exposed
+          CUDA_VERSION=$(nvidia-smi | grep -oP 'CUDA Version: \K[0-9]+\.[0-9]+' || nvidia-smi | grep -o 'CUDA Version: [0-9]\+\.[0-9]\+' | cut -d':' -f2 | tr -d ' ')
+          echo "Detected CUDA Driver Version: $CUDA_VERSION"
+          
+          WHL_TAG="cu$(echo $CUDA_VERSION | tr -d '.')"
+          python -m pip install torch --index-url "https://pytorch.org/whl/{WHL_TAG}"
+          
         else
-          echo "No CUDA hardware detected. Installing CPU-optimized PyTorch."
-          python -m pip install torch --index-url https://pytorch.org
+          echo "No local CUDA environment found. Defaulting to CPU-optimized PyTorch build."
+          python -m pip install torch --index-url https://pytorch.org/whl/cpu
         fi
       shell: bash
 

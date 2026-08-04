@@ -1,9 +1,10 @@
-(algoverse) madhuri@madhuri-debian:~/Downloads/coproc-poc-main$ python stage0_repro.py --lesion all --device 0 --baseline-only --stim-sigma 1.75
 ========================================================================
 LESION: f5m1  ->  default (connection) F5-M1 lesion
-  device=cuda:0  recover_after_lesion=False  coadapt=False  stim_sigma=1.75
+  device=cuda:0  recover_after_lesion=False  coadapt=False  stim_sigma=2.175
+  num_stim_channels=repo default  stim_decay=repo default
+  en_ready_floor=None  stop_pct=0.9  max_epochs=None
 ========================================================================
-Log dir will be: ./models/gaussian20.1.75_connectionsIdxs[(1, 2, 0, 1), (0, 1, 1, 2), (2, 3, 0, 1), (0, 1, 2, 3)]_gaussianExp16.sig1.75.decay0.3_enActTanh_cpnActTanh/8bdae2de-c7fd-412b-af73-2b39f34eef99
+Log dir will be: ./models/gaussian20.1.75_connectionsIdxs[(1, 2, 0, 1), (0, 1, 1, 2), (2, 3, 0, 1), (0, 1, 2, 3)]_gaussianExp16.sig2.175.decay0.3_enActTanh_cpnActTanh/dbc0c76c-b4ed-435c-bea0-e5d8042c5dc2
 Healthy loss: 0.00056582, Lesioned loss: 0.02072604
 
   Healthy ceiling  (MSE, no lesion)        : 0.000566
@@ -15,9 +16,11 @@ Healthy loss: 0.00056582, Lesioned loss: 0.02072604
 
 ========================================================================
 LESION: aip  ->  AIP output lesion (neurons 200-250)
-  device=cuda:0  recover_after_lesion=False  coadapt=False  stim_sigma=1.75
+  device=cuda:0  recover_after_lesion=False  coadapt=False  stim_sigma=2.175
+  num_stim_channels=repo default  stim_decay=repo default
+  en_ready_floor=None  stop_pct=0.9  max_epochs=None
 ========================================================================
-Log dir will be: ./models/gaussian20.1.75_outputsIdxs200.250_gaussianExp16.sig1.75.decay0.3_enActTanh_cpnActTanh/6cbfd881-06be-46eb-a845-b9a9d9fd26c1
+Log dir will be: ./models/gaussian20.1.75_outputsIdxs200.250_gaussianExp16.sig2.175.decay0.3_enActTanh_cpnActTanh/dc79a90e-845d-495a-9472-96169f20f62a
 Healthy loss: 0.00056582, Lesioned loss: 0.00449802
 
   Healthy ceiling  (MSE, no lesion)        : 0.000566
@@ -29,9 +32,11 @@ Healthy loss: 0.00056582, Lesioned loss: 0.00449802
 
 ========================================================================
 LESION: m1  ->  M1 output lesion (neurons 0-50)
-  device=cuda:0  recover_after_lesion=False  coadapt=False  stim_sigma=1.75
+  device=cuda:0  recover_after_lesion=False  coadapt=False  stim_sigma=2.175
+  num_stim_channels=repo default  stim_decay=repo default
+  en_ready_floor=None  stop_pct=0.9  max_epochs=None
 ========================================================================
-Log dir will be: ./models/gaussian20.1.75_outputsIdxs0.50_gaussianExp16.sig1.75.decay0.3_enActTanh_cpnActTanh/030383b0-b43b-4f4d-b316-244a3674369a
+Log dir will be: ./models/gaussian20.1.75_outputsIdxs0.50_gaussianExp16.sig2.175.decay0.3_enActTanh_cpnActTanh/4f500c97-611a-4c01-9087-55237e96778b
 Healthy loss: 0.00056582, Lesioned loss: 0.02113436
 
   Healthy ceiling  (MSE, no lesion)        : 0.000566
@@ -40,4 +45,3 @@ Healthy loss: 0.00056582, Lesioned loss: 0.02113436
   Hand-muscle ceiling / floor                : 0.000743 / 0.016946
 
   --baseline-only set: skipping CPN training. Setup verified.
-

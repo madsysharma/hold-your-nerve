@@ -1,0 +1,47 @@
+========================================================================
+LESION: f5m1  ->  default (connection) F5-M1 lesion
+  device=cuda:0  recover_after_lesion=False  coadapt=False  stim_sigma=2.175
+  num_stim_channels=repo default  stim_decay=repo default
+  en_ready_floor=None  stop_pct=0.7  max_epochs=None
+========================================================================
+Log dir will be: ./models/gaussian20.1.75_connectionsIdxs[(1, 2, 0, 1), (0, 1, 1, 2), (2, 3, 0, 1), (0, 1, 2, 3)]_gaussianExp16.sig2.175.decay0.3_enActTanh_cpnActTanh/e482df04-1b0a-416b-a93a-4a203ee3e369
+Healthy loss: 0.00056582, Lesioned loss: 0.02072604
+
+  Healthy ceiling  (MSE, no lesion)        : 0.000566
+  Lesioned floor   (MSE, lesion, no stim)    : 0.020726
+  Headroom (lesioned - healthy)              : 0.020160
+  Hand-muscle ceiling / floor                : 0.000743 / 0.034133
+
+  --baseline-only set: skipping CPN training. Setup verified.
+
+========================================================================
+LESION: aip  ->  AIP output lesion (neurons 200-250)
+  device=cuda:0  recover_after_lesion=False  coadapt=False  stim_sigma=2.175
+  num_stim_channels=repo default  stim_decay=repo default
+  en_ready_floor=None  stop_pct=0.7  max_epochs=None
+========================================================================
+Log dir will be: ./models/gaussian20.1.75_outputsIdxs200.250_gaussianExp16.sig2.175.decay0.3_enActTanh_cpnActTanh/58dbc28b-4264-4617-8fba-747a15293dee
+Healthy loss: 0.00056582, Lesioned loss: 0.00449802
+
+  Healthy ceiling  (MSE, no lesion)        : 0.000566
+  Lesioned floor   (MSE, lesion, no stim)    : 0.004498
+  Headroom (lesioned - healthy)              : 0.003932
+  Hand-muscle ceiling / floor                : 0.000743 / 0.006931
+
+  --baseline-only set: skipping CPN training. Setup verified.
+
+========================================================================
+LESION: m1  ->  M1 output lesion (neurons 0-50)
+  device=cuda:0  recover_after_lesion=False  coadapt=False  stim_sigma=2.175
+  num_stim_channels=repo default  stim_decay=repo default
+  en_ready_floor=None  stop_pct=0.7  max_epochs=None
+========================================================================
+Log dir will be: ./models/gaussian20.1.75_outputsIdxs0.50_gaussianExp16.sig2.175.decay0.3_enActTanh_cpnActTanh/d99e5211-3b92-4f34-87f4-e454d85a7662
+Healthy loss: 0.00056582, Lesioned loss: 0.02113436
+
+  Healthy ceiling  (MSE, no lesion)        : 0.000566
+  Lesioned floor   (MSE, lesion, no stim)    : 0.021134
+  Headroom (lesioned - healthy)              : 0.020569
+  Hand-muscle ceiling / floor                : 0.000743 / 0.016946
+
+  --baseline-only set: skipping CPN training. Setup verified.

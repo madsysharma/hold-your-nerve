@@ -50,9 +50,7 @@ class CPNModel(nn.Module):
         self.x0 = None
 
         # Used purely for dropping gradients on the ground.
-        #  We do this to reset between learning epochs where
-        #  the optimizer/thing we are learning isn't this
-        #  network, but we are using this network.
+        # We do this to reset between learning epochs where the optimization policy we are learning isn't from this network, but we are using this network.
         self._opt = torch.optim.SGD(self.parameters(), lr=1e-3)
 
         self._uuid = uuid.uuid1()
@@ -99,10 +97,9 @@ class CPNModel(nn.Module):
 
 class CPNNoiseyCollection(nn.Module):
     """
-    This acts like a CPN, but in-fact varies its parameters for each sample in
-    the batch. For N% of the batch it acts exactly like the provided CPN. For
-    the rest, it acts the same, but with some amount of mean 0 noise added to
-    every param.
+    This acts like a CPN, but in-fact varies its parameters for each sample in the batch. 
+    For N% of the batch it acts exactly like the provided CPN. 
+    For the rest, it acts the same, but with some amount of mean 0 noise added to every param.
     """
 
     def __init__(
@@ -210,9 +207,7 @@ class CPNNoiseyCollection(nn.Module):
             )
 
         # Used purely for dropping gradients on the ground.
-        #  We do this to reset between learning epochs where
-        #  the optimizer/thing we are learning isn't this
-        #  network, but we are using this network.
+        # We do this to reset between learning epochs where the optimizer/thing we are learning isn't this network, but we are using this network.
         self._opt = torch.optim.SGD(self.parameters(), lr=1e-3)
 
     def forward(self, din):
@@ -319,10 +314,9 @@ class CPNNoiseyLSTMCollection(nn.Module):
 
     def setup(self, batch_size):
         """
-        This sets the model up to process the elements of the batch
-        differently. Specifically, we add mean 0 noise around the true
-        model weights (from self.cpn). That helps us explore the area
-        around self.cpn in parameter space.
+        This sets the model up to process the elements of the batch differently. 
+        Specifically, we add mean 0 noise around the true model weights (from self.cpn). 
+        That helps us explore the area around self.cpn in parameter space.
         """
         with torch.no_grad():
             noisey_cnt = int(batch_size * self.noisey_pct)
@@ -409,11 +403,8 @@ class CPNNoiseyLSTMCollection(nn.Module):
             self.grad_mask_fc_b[:noisey_cnt, :] = 1.0
 
         # Used for dropping gradients on the ground.
-        #  We do this to reset between learning epochs where
-        #  the optimizer/thing we are learning isn't this
-        #  network, but we are using this network.
-        # Also: we use this for our "wiggle the gradients during EN
-        #  training".
+        # We do this to reset between learning epochs where the optimizer/thing we are learning isn't this network, but we are using this network.
+        # Also: we use this for our "wiggle the gradients during EN training".
         self._opt = torch.optim.SGD(self.parameters(), lr=1e-5)
 
     # def step(self, only_noisey=True):

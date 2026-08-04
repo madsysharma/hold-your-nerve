@@ -75,12 +75,13 @@ class CPN_EN_CoProc(experiment.CoProc):
             cfg.observer_instance.stdevs = obs_stdevs
             print("Observer loaded as:", str(cfg.observer_instance))
 
-        en_in_dim = cfg.observer_instance.out_dim + stim_dim + 1 #en trained on 20 MI electrodes (if MI isnt dropped) + 16 stimulation channels + trial end flag
+        en_in_dim = cfg.observer_instance.out_dim + stim_dim + 1 #EN trained on 20 MI electrodes (if MI isnt dropped) + 16 stimulation channels + trial end flag
+
         #Predict muscle activations based on interplay between MI electrodes and stimulation
-        self.en, self.opt_en = ErrorInjector.build_structural_en( #returns an untrained EN (possibly structurally mismatched) and optimizer
+        self.en, self.opt_en = ErrorInjector.build_structural_en( # Returns an untrained EN (which is possibly structurally mismatched) and an optimizer
             en_in_dim,
             out_dim,
-            num_neurons=cfg.en_num_neurons, #pass in new parameters
+            num_neurons=cfg.en_num_neurons, # Pass the new parameters
             activation=cfg.en_activation,
             cuda=cfg.cuda,
             cell_type=cfg.en_cell_type,
@@ -99,11 +100,9 @@ class CPN_EN_CoProc(experiment.CoProc):
             self.en, self.opt_en, self.cpn, self.opt_cpn, self.cfg
         )
 
-        # If we aren't training, it means we trained already. At
-        # lease that is the interface for now. It also means we
-        # are loading an existing cpn.model from a fully qualified
-        # log dir path. Again - just a very assumption heavy
-        # cfg.
+        # If we aren't training, it means we have trained the model already. 
+        # It could also mean we are loading an existing cpn.model from a fully qualified
+        # Again - just a very assumption heavy cfg.
         if cfg.dont_train:
             cpn_model_path = os.path.join(log_dir, MODEL_FILENAME_CPN)
         else:
@@ -125,7 +124,18 @@ class CPN_EN_CoProc(experiment.CoProc):
         #     Each item is a stim or obs
         self.saved_data = []
 
+        # Distributional (state-hook) support: once True, the EN is kept stale
+        # (no recycling), so it stays inaccurate on the drifted brain.
+        self._en_frozen = False
+
         self.reset_soft()
+
+    def freeze_en(self):
+        # Pin the EN after distributional drift is injected: stop recycling so it stays stale relative to the drifted brain. 
+        # Self-triggered at the EN->CPN handoff below when cfg.drift_delta > 0.
+        self._en_frozen = True
+        for param in self.en.parameters():
+            param.requires_grad = False
 
     def reset_soft(self):
         self.stims = []
@@ -157,13 +167,13 @@ class CPN_EN_CoProc(experiment.CoProc):
 
         self.reset_soft()
 
-    def forward(self, brain_data, loss_history, en_obs_override=None): #added en_obs_override parameter
+    def forward(self, brain_data, loss_history, en_obs_override=None): # Added en_obs_override parameter
         if self.epoch_type in (EpochType.EN, EpochType.VAL_EN):
             new_stim = self.en_epoch.forward(
                 brain_data,
                 loss_history,
                 self.epoch_type == EpochType.VAL_EN,
-                en_obs_override=en_obs_override, #forward incorrect tensor of observations
+                en_obs_override=en_obs_override, # Forward the incorrect tensor of observations
             )
         elif self.epoch_type in (EpochType.CPN, EpochType.VAL_CPN):
             new_stim = self.cpn_epoch.forward(
@@ -206,8 +216,7 @@ class CPN_EN_CoProc(experiment.CoProc):
         return update_task_loss
 
     def train_en_closed_loop(self, loss_history, user_data, next_is_validation):
-        # Unpack, aka form a single 'actuals', 'targets', 'trial_end',
-        #  and pack a list of concatenated stims.
+        # Unpack, aka form a single 'actuals', 'targets', 'trial_end', and pack a list of concatenated stims.
 
         trial_len = len(self.saved_data[0][4])
 
@@ -303,7 +312,9 @@ class CPN_EN_CoProc(experiment.CoProc):
             else:
                 self.epoch_type = EpochType.EN
 
-            if len(self.saved_data) == self.recycle_thresh and not en_is_ready:
+            if (not self._en_frozen
+                    and len(self.saved_data) == self.recycle_thresh
+                    and not en_is_ready):
                 en_is_ready = self.train_en_closed_loop(
                     loss_history, user_data, next_is_validation
                 )
@@ -336,6 +347,9 @@ class CPN_EN_CoProc(experiment.CoProc):
                     self.epoch_type = EpochType.VAL_CPN
                 else:
                     self.epoch_type = EpochType.CPN
+            elif self._en_frozen:
+                # EN is deliberately stale: stay in CPN, do not recycle it.
+                self.epoch_type = EpochType.CPN
             else:
                 for param in self.cpn.parameters():
                     param.requires_grad = False
@@ -344,6 +358,14 @@ class CPN_EN_CoProc(experiment.CoProc):
 
                 self.epoch_type = EpochType.EN
                 next_is_validation = False
+
+        # Distributional-error handoff: first time we enter CPN training, the EN is converged on the pre-drift brain. 
+        # If cfg.drift_delta > 0, freeze it so it stays stale while the Experiment run loop drifts the brain at this same handoff. 
+        # This code block fires once.
+        if (not self._en_frozen
+                and getattr(self.cfg, "drift_delta", 0.0) > 0.0
+                and self.epoch_type in (EpochType.CPN, EpochType.VAL_CPN)):
+            self.freeze_en()
 
         result = experiment.EpochResult(
             we_are_done,

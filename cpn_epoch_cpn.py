@@ -81,14 +81,9 @@ class CPNEpochCPN:
         if self.preds is None:
             self.preds = []
 
-    def forward(self, brain_data, loss_history, is_validation, drift_delta=0.0):
+    def forward(self, brain_data, loss_history, is_validation):
         batch_size = brain_data[0].shape[0]
         self.ensure_preds(batch_size)
-
-        # Apply distributional drift if specified
-        if drift_delta > 0.0:
-            drifted_obs = ErrorInjector.apply_distributional_error(brain_data[0], delta=drift_delta)
-            brain_data = (drifted_obs,) + brain_data[1:]
 
         cpn_in = torch.cat(brain_data, axis=1)
 
@@ -115,7 +110,7 @@ class CPNEpochCPN:
         train_loss = calc_train_loss(preds, targets)
 
         if self.reg_stim_weight is not None:
-            # Regularization for stimulation applied
+            # Regularizing applied stimulation
             train_loss += self.reg_stim_weight * sum(
                 [torch.linalg.norm(s) for s in self.stims]
             )
@@ -225,11 +220,9 @@ class CPNEpochCPN:
 
         rtl = loss_history.recent_task_loss
         if rtl is None:
-            # No CPN task loss has been recorded yet -- e.g. the EN->CPN handoff
-            # landed on a validation epoch, where report_val_last_result passes
-            # task_loss=None, so recent_task_loss is still None. Fall back to the
-            # CPN train loss so the readiness gate below and the recent_task_losses
-            # comparison stay valid instead of raising on None / int.
+            # No CPN task loss has been recorded yet, eg: the EN->CPN handoff landed on a validation epoch, where report_val_last_result passes
+            # task_loss=None, so recent_task_loss is still None. 
+            # Fall back to the CPN train loss so the readiness gate below and the recent_task_losses comparison stay valid instead of raising on None / int.
             rtl = self.recent_train_loss
         self.recent_task_losses.append(rtl)
 

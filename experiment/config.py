@@ -44,6 +44,9 @@ class Config:
     en_cell_type: str = "lstm"
     en_observer_instance: typing.Optional[observer.Observer] = None
     sigma_p: float = 0.0
+    drift_delta: float = 0.0
+    drift_k: int = 8
+    drift_seed: int = 42
 
     def shuffle_dataset(self):
         _, self.loader_train[0], self.loader_test[0] = get_dataset(
@@ -187,6 +190,9 @@ def get(
     en_cell_type="lstm",
     en_obs_sigma=None,
     sigma_p=0.0,
+    drift_delta=0.0,
+    drift_k=8,
+    drift_seed=42,
 ):
 
     if observer_type is observer.ObserverType.passthrough:
@@ -364,5 +370,8 @@ def get(
         en_cell_type=en_cell_type,
         en_observer_instance=en_observer_instance,
         sigma_p=sigma_p,
+        drift_delta=drift_delta,
+        drift_k=drift_k,
+        drift_seed=drift_seed,
     )
     return cfg_out

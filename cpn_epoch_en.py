@@ -21,7 +21,7 @@ class CPNEpochEN:
         self.preds = None
         self.tidx = 0
 
-        # This tracks how many epochs we've been training the EN
+        # This tracks the number of epochs we've been training the EN
         self.checkpoint_eidx = 0
 
         self.cpn_noise = None
@@ -81,7 +81,7 @@ class CPNEpochEN:
         if self.preds is None:
             self.preds = []
 
-    #give en_obs_override to use observations from EN with mismatched sigma 
+    # Give en_obs_override to use observations from EN with mismatched sigma 
     def forward(self, brain_data, loss_history, is_validation, stim=None, en_obs_override=None):
         batch_size = brain_data[0].shape[0]
         self.ensure_preds(batch_size)
@@ -97,9 +97,8 @@ class CPNEpochEN:
         else:
             new_stim = stim
 
-        # en receives (obs, stims, trial_end)
-        # (detaching just in case; we don't want to backprop here)
-        #give en_obs_override to use observations from EN with mismatched sigma 
+        # EN receives (obs, stims, trial_end). Detachment is just in case; we don't want to backprop here)
+        # Give en_obs_override to use observations from EN with mismatched sigma 
         new_obs_en = brain_data[0] if en_obs_override is None else en_obs_override
         en_in = torch.cat((new_obs_en, new_stim, brain_data[-1]), axis=1)
         cur_pred = self.en(en_in)
@@ -162,7 +161,7 @@ class CPNEpochEN:
             self.checkpoint_eidx += 1
             en_is_ready = False
 
-        # Every 10 epochs let's validate/test
+        # Validate/test every 10 epochs
         next_is_validation = (
             not en_is_ready and not is_validation and (self.checkpoint_eidx % 10) == 0
         )

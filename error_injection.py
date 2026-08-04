@@ -1,18 +1,17 @@
 import torch
 import torch.nn as nn
-import stim_model  # defines EN architecture (used by build_structural_en)
+import stim_model  # Defines EN architecture (used by build_structural_en)
 
 
-# ---------------------------------------------------------------------------
-# Low-dimensional affine drift of the mRNN state: x -> R x + b.
-# Built once from a seed (fixed manifold). R is a proper rotation (orthogonal
-# for every delta, identity at delta=0), whose angle scales with delta, acting
-# only inside a random k-dim subspace; b is a translation confined to that same
-# subspace. This is the corrected drift (the earlier (1-d)*I + d*Q blend was not
-# orthogonal and not low-dimensional). Used by BOTH the standalone tensor helper
-# apply_distributional_error and the state-hook apply_dist_error.
-# ---------------------------------------------------------------------------
 class _DistributionalDrift:
+    """
+    Low-dimensional affine drift of the mRNN state: x -> R x + b.
+    Built once from a seed (fixed manifold). R is a proper rotation (orthogonal for every delta, identity at delta=0), whose angle scales with delta, acting
+    only inside a random k-dim subspace; b is a translation confined to that same subspace.
+
+    This is the corrected drift (the earlier (1-d)*I + d*Q blend was not orthogonal and not low-dimensional). 
+    Used by both the standalone tensor helper apply_distributional_error and the state-hook apply_dist_error.
+    """
     def __init__(self, num_neurons, delta, k=8, seed=42):
         self.num_neurons = num_neurons
         self.delta = float(delta)
@@ -40,7 +39,7 @@ class _DistributionalDrift:
 
 
 class ErrorInjector:
-    """Unified Interface for Injecting Emulator Errors."""
+    """Defines the unified interface for injecting errors into the EN."""
 
     # ---- Structural axis ---------------------------------------------------
     @staticmethod
@@ -92,11 +91,11 @@ class ErrorInjector:
     def apply_distributional_error(hidden_state: torch.Tensor, delta: float,
                                    seed: int = 42, k: int = 8) -> torch.Tensor:
         """
-        Standalone tensor form of the distributional drift: x -> R x + b, a
-        low-dimensional rotation and translation. Returns a drifted copy, same
-        shape. delta == 0 returns the input unchanged. Row-vector convention:
-        R x is x @ R.T. (The training loop uses the hook form, apply_dist_error;
-        this helper is kept for direct use and testing.)
+        Standalone tensor form of the distributional drift: x -> R x + b, a low-dimensional rotation and translation. 
+        Returns a drifted copy, same shape. 
+        delta == 0 returns the input unchanged. 
+        Row-vector convention: R x is x @ R.T. 
+        (The training loop uses the hook form, apply_dist_error; this helper is kept for direct use and testing.)
         """
         if delta == 0.0:
             return hidden_state
@@ -108,23 +107,19 @@ class ErrorInjector:
     def apply_dist_error(model: nn.Module, delta: float, k: int = 8,
                          seed: int = 42, mode: str = "onset") -> nn.Module:
         """
-        State-hook distributional error: drift the BRAIN's internal state
-        x -> R x + b during rollout, so an emulator trained before the drift is
-        evaluated after it. Installs a forward hook on `model` (the mRNN) and
-        returns it.
+        State-hook distributional error: drift the brain's internal state x -> R x + b during rollout, so an emulator trained before the drift is
+        evaluated after it. 
 
-        model must expose .x, .prev_output, .activation_func, .num_neurons, .reset
-        (the MichaelsRNN does). Passing an emulator raises ValueError, since only
-        the brain has the state manifold that drifts.
+        Installs a forward hook on `model` (the mRNN) and returns it.
+
+        model must expose .x, .prev_output, .activation_func, .num_neurons, .reset (which the Michaels mRNN does). 
+        Passing an emulator raises ValueError, since only the brain has the state manifold that drifts.
 
         mode:
-          "onset"      -> drift applied ONCE per trial, at the first step after
-                          each reset(). Non-compounding; the benchmark default.
-          "persistent" -> drift applied EVERY step (a fixed R compounds to R^t
-                          over a trial; use small delta / short trials).
+          "onset":      drift applied ONCE per trial, at the first step after each reset(). Non-compounding; the benchmark default.
+          "persistent": drift applied EVERY step (a fixed R compounds to R^t over a trial; use small delta / short trials).
 
-        Reusing on the same model is safe: any prior drift is removed first, so
-        sweeping delta does not stack hooks. Use remove_dist_error to undo.
+        Reusing on the same model is safe: any prior drift is removed first, so sweeping delta doesn't stack hooks. Use remove_dist_error to undo.
         """
         for attr in ("x", "prev_output", "activation_func", "num_neurons", "reset"):
             if not hasattr(model, attr):

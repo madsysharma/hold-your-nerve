@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
 """
-stage1_error_injection.py - run CPN-EN training with a chosen emulator-error axis.
+stage1_error_injection.py: run CPN-EN training with a chosen emulator-error axis.
 
-Stage 1 companion to stage0_repro.py. Where Stage 0 reproduces the clean testbed,
-Stage 1 injects a controlled emulator error and runs the same CPN-EN training so you
-can see how recovery degrades. Mirrors stage0_repro's CLI and reuses its helpers.
+This is the Stage 1 companion to stage0_repro.py. 
+Where Stage 0 reproduces the clean testbed, Stage 1 injects a controlled emulator error and runs the same CPN-EN training so you can see how recovery degrades. 
+Mirrors stage0_repro's CLI and reuses its helpers.
 
-The three benchmark axes and how they enter training:
+The three benchmark axes and how they are integrated into the training process:
 
-  parametric     : cfg.sigma_p -> ErrorInjector.apply_param_error on the EN at the
-                   EN->CPN handoff (cpn.py).
-  structural     : cfg.en_num_neurons / cfg.en_cell_type -> ErrorInjector.build_structural_en
-                   builds the EN with a mismatched capacity or cell type (cpn_epoch_en.py).
-  distributional : cfg.drift_delta -> ErrorInjector.apply_dist_error installs a forward
-                   hook on the brain (self.mike) at the EN->CPN handoff (experiment.py),
+  parametric     : cfg.sigma_p -> ErrorInjector.apply_param_error on the EN at the EN->CPN handoff (cpn.py).
+  structural     : cfg.en_num_neurons / cfg.en_cell_type -> ErrorInjector.build_structural_en builds the EN with a mismatched capacity or cell type 
+                   (cpn_epoch_en.py).
+  distributional : cfg.drift_delta -> ErrorInjector.apply_dist_error installs a forward hook on the brain (self.mike) at the EN->CPN handoff (experiment.py),
                    drifting the brain state x->Rx+b while the EN is frozen stale (cpn.py).
 
-Examples:
+Examples of usage:
   python stage1_error_injection.py --error parametric --sigma-p 0.2 --lesion f5m1
   python stage1_error_injection.py --error structural --en-num-neurons 40 --lesion m1
   python stage1_error_injection.py --error structural --en-cell-type gru --lesion aip
@@ -47,10 +45,10 @@ warnings.filterwarnings("ignore")
 def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
                             sigma_p=0.0, en_num_neurons=None, en_cell_type=None,
                             drift_delta=0.0, drift_k=8, drift_seed=42):
-    """Like stage0_repro.build_config, but also threads the error-injection knobs
-    (parametric sigma_p; structural en_num_neurons/en_cell_type; distributional
-    drift_delta/drift_k/drift_seed) into the repo Config. Unset knobs are omitted
-    so the repo defaults stand."""
+    """Like stage0_repro.build_config, but also threads the error-injection knobs (parametric sigma_p; structural en_num_neurons/en_cell_type; distributional
+    drift_delta/drift_k/drift_seed) into the repo Config.
+
+    Unset knobs are omitted so the repo defaults stand."""
     common = dict(
         recover_after_lesion=recover,
         cuda=device,
@@ -173,7 +171,7 @@ def main():
     p.add_argument("--drift-seed", type=int, default=42,
                    help="Distributional: drift direction seed. Default 42.")
 
-    # --- Shared knobs, same meaning as stage0_repro ---
+    # --- Shared knobs, same as the stage0_repro ---
     p.add_argument("--lesion", choices=["f5m1", "aip", "m1", "all"], default="f5m1")
     p.add_argument("--device", default="cpu",
                    help="'cpu', or a CUDA device index like '0'. Default: cpu.")
@@ -200,9 +198,9 @@ def main():
     if args.error == "structural" and args.en_num_neurons is None and args.en_cell_type is None:
         raise SystemExit("--error structural requires --en-num-neurons and/or --en-cell-type.")
 
-    # Error-injection runs are EXPECTED to hold true recovery below --stop-pct
-    # (that is what the error does). Without an epoch cap the run then never
-    # reaches the stop threshold and trains indefinitely. Warn and suggest a cap.
+    # Error-injection runs are expected to hold true recovery below --stop-pct (that is what the error does). 
+    # Without an epoch cap the run then never reaches the stop threshold and trains indefinitely. 
+    # Give a warning and suggest an epoch cap.
     if args.error != "none" and args.max_epochs is None:
         print(
             "WARNING: --error " + args.error + " is injected but --max-epochs is "

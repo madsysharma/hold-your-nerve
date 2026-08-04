@@ -11,10 +11,11 @@ def get_stim_model(
     in_dim, out_dim, num_neurons=None, activation=torch.nn.Tanh, cuda=None,
     cell_type="lstm",
 ):
-#control if we use num_neurons or default 
+    # Control if we use num_neurons or default 
     if num_neurons is None:
         num_neurons = in_dim + 50
-#control model type
+
+    # Control model type
     if cell_type == "lstm":
         model_cls = StimModelLSTM
     elif cell_type == "gru":
@@ -83,9 +84,7 @@ class StimModel(nn.Module):
         self.x0 = None
 
         # Used purely for dropping gradients on the ground.
-        #  We do this to reset between learning epochs where
-        #  the optimizer/thing we are learning isn't this
-        #  network, but we are using this network.
+        # We do this to reset between learning epochs where the optimizer/thing we are learning isn't this network, but we are using this network.
         self._opt = torch.optim.SGD(self.parameters(), lr=1e-3)
 
     def reset(self):

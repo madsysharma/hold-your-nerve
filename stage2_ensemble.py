@@ -1,32 +1,30 @@
 #!/usr/bin/env python3
 """
-stage2_ensemble.py - trains an ensemble of M ENs.
+stage2_ensemble.py - trains an ensemble of M emulator networks (ENs).
 
 Summary:
-Where Stage 1 runs one CPN-EN training job under a chosen error axis, Stage 2 builds an ENSEMBLE of M emulators
-- each trained by the same loop but from a different random seed and (optionally) a different randomly-drawn error config -
-then reports each member's recovery and how much the trained members disagree, which is the raw epistemic-uncertainty signal 
-the trust-aware objective (Stage 3) consumes.
+Where Stage 1 runs one CPN-EN training job under a chosen error axis, Stage 2 builds an ENSEMBLE
+of M emulators - each trained by the same loop but from a different random seed and
+(optionally) a different randomly-drawn error config - then reports each member's
+recovery and how much the trained members disagree, which is the raw
+epistemic-uncertainty signal the trust-aware objective (Stage 3) consumes.
 
-Why this uses per-member training loops: 
+Why we're using per-member training loops here:
 This repo trains the EN inside the experiment loop (CPNEpochEN, built via ErrorInjector.build_structural_en); there is no standalone
-EN trainer. So the honest way to produce M trained emulators without touching the training loop is to run that loop M times. 
-
-Wiring the ensemble in as a single EN (one loop, per-member NLL heads) is the Stage 3 integration (see EnsembleENAdapter);
-this script is the Stage 2 deliverable it builds on.
+EN trainer. 
+So the honest way to produce M trained emulators without touching the training loop is to run that loop M times. 
+Wiring the ensemble in as a single EN (one loop, per-member NLL heads) is the Stage 3 integration (see EnsembleENAdapter); this script is the Stage 2 deliverable it builds on.
 
 
 Command line arguments:
 --member-errors controls the "random configs (error / no error)" per member:
-  none         : every member clean; members differ only by init seed (standard
-                 deep ensemble).
-  random       : each member independently draws none / parametric / structural
-                 with a random magnitude -- a deliberately diverse ensemble.
+  none         : every member clean; members differ only by init seed (standard deep ensemble).
+  random       : each member independently draws none / parametric / structural / distributional with a random magnitude - a deliberately diverse ensemble.
   parametric   : every member gets parametric error at --sigma-p.
   structural   : every member gets the structural knobs (--en-num-neurons / --en-cell-type).
   distributional : every member trained with brain drift at --drift-delta (state hook).
 
-Examples of usage:
+Examples:
   python stage2_ensemble.py --num-members 5 --lesion f5m1 --max-epochs 2000
   python stage2_ensemble.py --num-members 5 --member-errors random --max-epochs 2000
   python stage2_ensemble.py --num-members 3 --member-errors structural --en-cell-type gru --max-epochs 2000
@@ -56,13 +54,20 @@ from stage1_error_injection import build_config_with_error, describe_error
 import warnings
 warnings.filterwarnings("ignore")
 
-CELL_TYPES = ["lstm", "gru", "rnn"]
-STRUCT_NEURONS = [20, 40, 87, 100, 120, 160]
+CELL_TYPES = ["lstm", "gru", "rnn"]        # Valid --en-cell-type choices (CLI)
+
+# Structural error values only
+STRUCT_NEURONS_ERROR = [20, 40, 160]
+STRUCT_CELLS_ERROR = ["gru", "rnn"]
+
+# Discrete magnitude sweeps from the error definitions (nonzero levels).
+SIGMA_P_LEVELS = [0.05, 0.1, 0.2, 0.4]
+DRIFT_DELTA_LEVELS = [0.05, 0.1, 0.2, 0.4]
 
 
 def draw_member_error(mode, rng, args):
-    """Return the error kwargs for one member as (label, kwargs) for
-    build_config_with_error. kwargs use the same names Stage 1 threads."""
+    """Return the error kwargs for one member as (label, kwargs) for build_config_with_error. 
+    kwargs use the same names Stage 1 threads."""
     if mode == "none":
         return "clean", {}
     if mode == "parametric":
@@ -77,22 +82,33 @@ def draw_member_error(mode, rng, args):
     if mode == "distributional":
         return f"distributional drift_delta={args.drift_delta}", {"drift_delta": args.drift_delta}
     if mode == "random":
-        choice = rng.choice(["none", "parametric", "structural"])
+        # All three error axes plus 'none'. 
+        # Note the axes are not the same type of variation: parametric/structural diversify the emulator (weights / architecture), 
+        # while distributional drifts the brain during that member's training. 
+        # Magnitudes/values are drawn from the discrete sets in the error definitions.
+        # Structural values exclude the correct defaults so a structural member always carries a real mismatch.
+        # (Distributional requires the state-hook wiring.)
+        choice = rng.choice(["none", "parametric", "structural", "distributional"])
         if choice == "none":
             return "clean", {}
         if choice == "parametric":
-            sp = round(rng.uniform(0.05, 0.4), 3)
+            sp = rng.choice(SIGMA_P_LEVELS)
             return f"parametric sigma_p={sp}", {"sigma_p": sp}
-        cell = rng.choice(CELL_TYPES)
-        neur = rng.choice(STRUCT_NEURONS)
-        return f"structural cell={cell} n={neur}", {"en_cell_type": cell, "en_num_neurons": neur}
+        if choice == "distributional":
+            dd = rng.choice(DRIFT_DELTA_LEVELS)
+            return f"distributional drift_delta={dd}", {"drift_delta": dd}
+        # Structural: perturb either capacity or topology (a single clean mismatch)
+        if rng.random() < 0.5:
+            neur = rng.choice(STRUCT_NEURONS_ERROR)
+            return f"structural n={neur}", {"en_num_neurons": neur}
+        cell = rng.choice(STRUCT_CELLS_ERROR)
+        return f"structural cell={cell}", {"en_cell_type": cell}
     raise ValueError(f"unknown member-errors mode: {mode}")
 
 
 def train_member(idx, seed, label, err_kwargs, args, device, coadapt, floor):
-    """Build + train one EN member via the standard loop. 
+    """Build and train one EN member via the standard loop.
     Returns (max_recovery or None, trained_en)."""
-
     torch.manual_seed(seed)  # Different init per member
 
     cpn_epoch_en.EN_READY_FLOOR = floor if floor is not None else _REPO_EN_READY_FLOOR
@@ -123,7 +139,9 @@ def ensemble_disagreement(members_ens, cfg_in_dim, batch=8):
     a scalar diversity signal. 
     Guarded: returns None if the members' interfaces don't line up."""
     try:
-        x = torch.randn(batch, cfg_in_dim)
+        # Build the probe on the same device/dtype as the members' weights, else a CUDA-trained EN gets a CPU input and matmul fails!
+        ref = next(members_ens[0].parameters())
+        x = torch.randn(batch, cfg_in_dim, device=ref.device, dtype=ref.dtype)
         preds = []
         for en in members_ens:
             en.reset() if hasattr(en, "reset") else None
@@ -140,7 +158,7 @@ def main():
         description="Stage 2: train an ensemble of M emulator networks.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    # --- Stage 2 knobs ---
+    # --- The Stage 2 knob ---
     p.add_argument("--num-members", type=int, default=5,
                    help="Number of ensemble members M to train. Default 5.")
     p.add_argument("--member-errors",

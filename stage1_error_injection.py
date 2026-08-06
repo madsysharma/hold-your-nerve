@@ -2,8 +2,8 @@
 """
 stage1_error_injection.py - run CPN-EN training with a chosen emulator-error axis.
 
-Stage 1 companion to stage0_repro.py. Where Stage 0 reproduces the clean testbed,
-Stage 1 injects a controlled emulator error and runs the same CPN-EN training so you
+Summary:
+Where Stage 0 reproduces the clean testbed, Stage 1 injects a controlled emulator error and runs the same CPN-EN training so one
 can see how recovery degrades. Mirrors stage0_repro's CLI and reuses its helpers.
 
 The three benchmark axes and how they enter training:
@@ -49,8 +49,9 @@ def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
                             drift_delta=0.0, drift_k=8, drift_seed=42, drift_ramp=-1):
     """Like stage0_repro.build_config, but also threads the error-injection knobs
     (parametric sigma_p; structural en_num_neurons/en_cell_type; distributional
-    drift_delta/drift_k/drift_seed) into the repo Config. Unset knobs are omitted
-    so the repo defaults stand."""
+    drift_delta/drift_k/drift_seed) into the repo Config. 
+    Unset knobs are omitted so the repo defaults stand.
+    """
     common = dict(
         recover_after_lesion=recover,
         cuda=device,
@@ -157,7 +158,7 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
 
 def main():
     p = argparse.ArgumentParser(
-        description="Stage 1: run CPN-EN training under a chosen emulator-error axis.",
+        description="Stage 1: run CPN-EN training under a chosen error axis.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--error", choices=["none", "parametric", "structural", "distributional"],
@@ -205,9 +206,8 @@ def main():
     if args.error == "structural" and args.en_num_neurons is None and args.en_cell_type is None:
         raise SystemExit("--error structural requires --en-num-neurons and/or --en-cell-type.")
 
-    # Error-injection runs are EXPECTED to hold true recovery below --stop-pct
-    # (that is what the error does). Without an epoch cap the run then never
-    # reaches the stop threshold and trains indefinitely. Warn and suggest a cap.
+    # Error-injection runs are expected to hold true recovery below --stop-pct.
+    # Without an epoch cap the run then never reaches the stop threshold and trains indefinitely. Warn the user and suggest a cap.
     if args.error != "none" and args.max_epochs is None:
         print(
             "WARNING: --error " + args.error + " is injected but --max-epochs is "
@@ -226,7 +226,7 @@ def main():
     cpn_epoch_cpn.STOP_PCT = args.stop_pct
     cpn_epoch_cpn.MAX_EPOCHS = args.max_epochs
 
-    # Only the selected axis is active; others stay at repo defaults.
+    # Only the selected axis is active while others stay at repo defaults.
     sigma_p = args.sigma_p if args.error == "parametric" else 0.0
     en_num_neurons = args.en_num_neurons if args.error == "structural" else None
     en_cell_type = args.en_cell_type if args.error == "structural" else None

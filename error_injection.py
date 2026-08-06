@@ -1,16 +1,14 @@
 import torch
 import torch.nn as nn
-import stim_model  # defines EN architecture (used by build_structural_en)
+import stim_model  # Defines the EN architecture (used by build_structural_en)
 
 
 # ---------------------------------------------------------------------------
 # Low-dimensional affine drift of the mRNN state: x -> R x + b.
-# Built once from a seed (fixed manifold). R is a proper rotation (orthogonal
-# for every delta, identity at delta=0), whose angle scales with delta, acting
-# only inside a random k-dim subspace; b is a translation confined to that same
-# subspace. This is the corrected drift (the earlier (1-d)*I + d*Q blend was not
-# orthogonal and not low-dimensional). Used by BOTH the standalone tensor helper
-# apply_distributional_error and the state-hook apply_dist_error.
+# Built once from a seed (fixed manifold). R is a proper rotation (orthogonal for every delta, identity at delta=0), 
+# whose angle scales with delta, acting only inside a random k-dim subspace; b is a translation confined to that same subspace. 
+# This is the corrected drift (the earlier (1-d)*I + d*Q blend was not
+# orthogonal and not low-dimensional).
 # ---------------------------------------------------------------------------
 class _DistributionalDrift:
     def __init__(self, num_neurons, delta, k=8, seed=42):
@@ -29,8 +27,8 @@ class _DistributionalDrift:
         Kk = torch.randn(k, k, generator=g)
         Sk = Kk - Kk.T
         Sk = Sk / (Sk.norm() + 1e-12)
-        self._A = U @ Sk @ U.T                       # skew generator, rank <= k
-        self._b_dir = U @ torch.randn(k, generator=g)  # translation direction
+        self._A = U @ Sk @ U.T                       # Skew generator, rank <= k
+        self._b_dir = U @ torch.randn(k, generator=g)  # Translation direction
         # Full drift (magnitude delta): used by onset / persistent modes.
         self.R = torch.linalg.matrix_exp(self.delta * torch.pi * self._A)
         self.b = self.delta * self._b_dir
@@ -45,8 +43,8 @@ class _DistributionalDrift:
 
     def increment(self, n):
         """Return the per-step increment (R_step, b_step) such that applying it
-        n times accumulates to the full drift: R_step^n = R, n*b_step = b. Used by
-        the slow ramp -- each step nudges the state by 1/n of the drift, so it
+        n times accumulates to the full drift: R_step^n = R, n*b_step = b. 
+        Used by the slow ramp: each step nudges the state by 1/n of the drift, so it
         wanders gradually to magnitude delta over n steps (one trial)."""
         if self._A is None:
             return None, None
@@ -56,9 +54,9 @@ class _DistributionalDrift:
         return R_step, b_step
 
     def transform_at(self, frac):
-        """Return (R, b) for the drift at a FRACTION of full magnitude, i.e.
-        effective delta = frac*delta. Used by multi-session drift, where the
-        session-level drift is applied once per trial at a magnitude that ramps
+        """Return (R, b) for the drift at a fraction of full magnitude, i.e.
+        effective delta = frac*delta. 
+        Used by multi-session drift, where the session-level drift is applied once per trial at a magnitude that ramps
         across trials. frac is clamped to [0, 1]."""
         if self._A is None:
             return None, None
@@ -69,7 +67,7 @@ class _DistributionalDrift:
 
 
 class ErrorInjector:
-    """Unified Interface for Injecting Emulator Errors."""
+    """Unified interface for injecting EN errors."""
 
     # ---- Structural axis ---------------------------------------------------
     @staticmethod
@@ -78,8 +76,7 @@ class ErrorInjector:
         activation=torch.nn.Tanh, cuda=None,
     ):
         """
-        Structural error: builds the EN with mismatched num_neurons
-        and/or cell type (lstm/gru/rnn).
+        Structural error: builds the EN with mismatched num_neurons and/or cell type (lstm/gru/rnn).
         """
         return stim_model.get_stim_model(
             in_dim, out_dim, num_neurons=num_neurons,
@@ -89,8 +86,7 @@ class ErrorInjector:
     @staticmethod
     def apply_observation_mismatch(mike, obs_model, module_idx, drop_neuron_mask=None):
         """
-        Structural error: gives the EN an observer for a mike module built with a
-        different sigma value.
+        Structural error: gives the EN an observer for a mike module built with a different sigma value.
         """
         return mike.observe_module(
             obs_model, module_idx, drop_neuron_mask=drop_neuron_mask
@@ -100,9 +96,8 @@ class ErrorInjector:
     @staticmethod
     def apply_param_error(model: nn.Module, sigma_p: float) -> nn.Module:
         """
-        Distorts model parameters: w <- w + eps,
-        where eps ~ N(0, sigma_p^2 * Var(w)).
-        Note: Std(eps) = sigma_p * Std(w).
+        Distorts model parameters: w <- w + eps, where eps ~ N(0, sigma_p^2 * Var(w)).
+        NOTE: Std(eps) = sigma_p * Std(w).
         """
         if sigma_p <= 0.0:
             return model
@@ -121,10 +116,9 @@ class ErrorInjector:
     def apply_distributional_error(hidden_state: torch.Tensor, delta: float,
                                    seed: int = 42, k: int = 8) -> torch.Tensor:
         """
-        Standalone tensor form of the distributional drift: x -> R x + b, a
-        low-dimensional rotation and translation. Returns a drifted copy, same
-        shape. delta == 0 returns the input unchanged. Row-vector convention:
-        R x is x @ R.T. (The training loop uses the hook form, apply_dist_error;
+        Standalone tensor form of the distributional drift: x -> R x + b, a low-dimensional rotation and translation. 
+        Returns a drifted copy, same shape. delta == 0 returns the input unchanged. 
+        Row-vector convention: R x is x @ R.T. (The training loop uses the hook form, apply_dist_error;
         this helper is kept for direct use and testing.)
         """
         if delta == 0.0:
@@ -138,8 +132,8 @@ class ErrorInjector:
                          seed: int = 42, mode: str = "onset",
                          ramp_steps: int = None, span_trials: bool = False) -> nn.Module:
         """
-        State-hook distributional error: drift the BRAIN's internal state
-        x -> R x + b during rollout, so an emulator trained before the drift is
+        State-hook distributional error: drift the brain's internal state
+        x -> R x + b during rollout, so an EN trained before the drift is
         evaluated after it. Installs a forward hook on `model` (the mRNN) and
         returns it.
 
@@ -148,21 +142,21 @@ class ErrorInjector:
         the brain has the state manifold that drifts.
 
         mode:
-          "slow"       -> the drift ramps GRADUALLY to full magnitude delta,
+          "slow"       -> the drift ramps gradually to full magnitude delta,
                           matching the definition's slow, MINDFUL-like timescale.
                           span_trials selects the timescale:
-                            span_trials=False (default): WITHIN one trial. A small
+                            span_trials=False (default): within one trial. A small
                               fixed increment per step ramps the state to full delta
                               over `ramp_steps` steps, and the ramp restarts each
                               trial. Set ramp_steps to the trial length.
-                            span_trials=True: ACROSS trials (multi-session). The
+                            span_trials=True: across trials (multi-session). The
                               session-level drift is applied once per trial (onset)
                               at a magnitude that ramps 0 -> delta over `ramp_steps`
-                              TOTAL steps spanning trials, so each trial starts more
+                              total steps spanning trials, so each trial starts more
                               drifted than the last. This models MINDFUL drift that
                               accumulates across sessions rather than resetting.
-          "onset"      -> full drift applied ONCE per trial (instantaneous step).
-          "persistent" -> full drift applied EVERY step (compounds; not slow).
+          "onset"      -> full drift applied once per trial (instantaneous step).
+          "persistent" -> full drift applied each step (compounds; not slow).
 
         Reusing on the same model is safe: any prior drift is removed first.
         """
@@ -183,8 +177,8 @@ class ErrorInjector:
 
         drift = _DistributionalDrift(model.num_neurons, delta, k=k, seed=seed)
 
-        # Per-trial / global state re-armed on reset(). _drift_t is the WITHIN-trial
-        # step counter (zeroed each trial); _drift_T is the GLOBAL step counter
+        # Per-trial / global state re-armed on reset(). _drift_t is the within-trial
+        # step counter (zeroed each trial); _drift_T is the global step counter
         # (persists across trials, for multi-session drift).
         model._drift_pending = (mode == "onset") or (mode == "slow" and span_trials)
         model._drift_t = 0
@@ -193,9 +187,9 @@ class ErrorInjector:
 
         def reset_with_rearm(*args, _orig=original_reset, _m=model, **kwargs):
             out = _orig(*args, **kwargs)
-            _m._drift_pending = True     # re-arm onset / per-session drift
+            _m._drift_pending = True     # Re-arm onset / per-session drift
             if not span_trials:
-                _m._drift_t = 0          # restart the within-trial ramp
+                _m._drift_t = 0          # Restart the within-trial ramp
             return out
 
         model._drift_original_reset = original_reset
@@ -217,7 +211,7 @@ class ErrorInjector:
                 module.x = drift.apply(module.x)
             elif span_trials:
                 # Multi-session: apply session-level drift once per trial (onset),
-                # at a magnitude that ramps with GLOBAL elapsed steps. The global
+                # at a magnitude that ramps with global elapsed steps. The global
                 # clock advances every step so later trials start more drifted.
                 if getattr(module, "_drift_pending", False):
                     module._drift_pending = False

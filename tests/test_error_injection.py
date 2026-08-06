@@ -1,7 +1,6 @@
 """
-Comprehensive tests for ErrorInjector: parametric, distributional (standalone
-tensor form + state-hook form), and structural error axes. Runs under pytest
-(test_* functions) or directly (python tests/test_error_injection.py).
+Comprehensive tests for ErrorInjector: parametric, distributional (standalone tensor form + state-hook form), and structural error axes. 
+Runs under pytest (test_* functions) or directly (python tests/test_error_injection.py).
 """
 import os
 import sys
@@ -13,9 +12,9 @@ import torch.nn as nn
 from error_injection import ErrorInjector, _DistributionalDrift
 
 
-# ===========================================================================
-# PARAMETRIC ERROR
-# ===========================================================================
+# ---------------------------------------------------------------------------
+# Parametric error
+# ---------------------------------------------------------------------------
 def test_parametric_error_sweep():
     sigma_p_values = [0.0, 0.05, 0.1, 0.2, 0.4, 0.5, 1.0, 1.75, 3.0, 5.0]
     print(f"[parametric] sweep across {len(sigma_p_values)} sigma_p values")
@@ -67,9 +66,9 @@ def test_parametric_perturbs_all_weight_tensors():
     print("[parametric] all weight tensors perturbed OK")
 
 
-# ===========================================================================
-# DISTRIBUTIONAL ERROR - standalone tensor form (corrected low-dim orthogonal)
-# ===========================================================================
+# ----------------------------------------------------------------------------
+# Distributional error - standalone tensor form (corrected low-dim orthogonal)
+# ----------------------------------------------------------------------------
 def test_distributional_identity_at_zero():
     x = torch.randn(4, 20)
     assert torch.equal(ErrorInjector.apply_distributional_error(x, 0.0), x)
@@ -111,6 +110,7 @@ def test_distributional_is_low_dimensional():
 
 
 def test_distributional_magnitude_increases_with_delta():
+    torch.manual_seed(0)
     x = torch.randn(4, 50)
     devs = [
         (ErrorInjector.apply_distributional_error(x, d, seed=11) - x).norm().item()
@@ -121,28 +121,68 @@ def test_distributional_magnitude_increases_with_delta():
     print("[distributional] deviation grows with delta OK")
 
 
-# ===========================================================================
-# DISTRIBUTIONAL ERROR - state-hook form (apply_dist_error on the mRNN)
-# ===========================================================================
+# ---------------------------------------------------------------------------
+# Distributional error - state-hook form (apply_dist_error on the mRNN)
+# ---------------------------------------------------------------------------
+class _FakeBrain(torch.nn.Module):
+    """Minimal stand-in exposing exactly the mRNN interface apply_dist_error needs (.x, .prev_output, .activation_func, .num_neurons, .reset). 
+    Keeping the state-hook unit test on this fake - rather than the full MichaelsRNN, which pulls in numpy tensor-splitting and network-file loading - 
+    makes the test portable across Python/numpy/torch versions. The real mRNN+hook integration
+    is exercised by stage1_error_injection.py --error distributional."""
+
+    def __init__(self, num_neurons=30):
+        super().__init__()
+        self.num_neurons = num_neurons
+        self.activation_func = torch.nn.Tanh()
+        self.x = None
+        self.prev_output = None
+
+    def reset(self):
+        self.x = None
+        self.prev_output = None
+
+    def forward(self, inp):
+        # inp: (batch, num_neurons); set the pre-activation state and output.
+        self.x = inp
+        self.prev_output = self.activation_func(self.x)
+        return self.prev_output
+
+
 def test_state_hook_drifts_brain_and_reverts():
-    from experiment import mRNN as M
-    net = M.MichaelsRNN()
+    torch.manual_seed(0)
+
+    def stepped(delta):
+        net = _FakeBrain(num_neurons=30)
+        if delta > 0.0:
+            ErrorInjector.apply_dist_error(net, delta=delta, k=8, seed=1, mode="onset")
+        net.reset()
+        net(torch.ones(4, net.num_neurons))
+        return net
 
     # delta=0 installs no hook
-    ErrorInjector.apply_dist_error(net, delta=0.0)
-    assert getattr(net, "_drift_handle", None) is None
+    net0 = _FakeBrain()
+    ErrorInjector.apply_dist_error(net0, delta=0.0)
+    assert getattr(net0, "_drift_handle", None) is None
 
-    # onset drift: state changes and prev_output stays consistent
-    ErrorInjector.apply_dist_error(net, delta=0.2, k=8, seed=1, mode="onset")
-    net.reset()
-    _ = net(torch.randn(net.num_input_features + 1, 4))
-    assert torch.equal(net.prev_output, net.activation_func(net.x))
+    # Onset drift changes the brain state relative to no drift...
+    clean = stepped(0.0)
+    drifted = stepped(0.2)
+    assert not torch.allclose(clean.x, drifted.x), "drift did not change the state"
 
-    # remove restores a clean model
-    ErrorInjector.remove_dist_error(net)
-    assert getattr(net, "_drift_handle", None) is None
-    assert getattr(net, "_drift_original_reset", None) is None
-    print("[state-hook] drift installs, stays consistent, and reverts OK")
+    # And leaves prev_output consistent with the drifted state
+    assert torch.allclose(drifted.prev_output, drifted.activation_func(drifted.x))
+
+    # Onset fires once per trial: after the first step, no drift is pending
+    assert getattr(drifted, "_drift_pending", None) is False
+    # reset re-arms it
+    drifted.reset()
+    assert getattr(drifted, "_drift_pending", None) is True
+
+    # Remove restores a clean model
+    ErrorInjector.remove_dist_error(drifted)
+    assert getattr(drifted, "_drift_handle", None) is None
+    assert getattr(drifted, "_drift_original_reset", None) is None
+    print("[state-hook] drift installs, changes state, fires once, and reverts OK")
 
 
 def test_state_hook_rejects_non_brain_model():
@@ -156,9 +196,101 @@ def test_state_hook_rejects_non_brain_model():
     print("[state-hook] rejects non-brain model OK")
 
 
-# ===========================================================================
-# STRUCTURAL ERROR
-# ===========================================================================
+def test_state_hook_slow_ramp_is_gradual():
+    """mode='slow' ramps the drift gradually to full magnitude over ramp_steps,
+    so the stepwise deviation grows monotonically and reset re-arms the ramp."""
+    torch.manual_seed(0)
+
+    class _FixedBrain(torch.nn.Module):
+        # Holds a fixed base state each step so we isolate the ramp itself
+        def __init__(self, n=30):
+            super().__init__()
+            self.num_neurons = n
+            self.activation_func = torch.nn.Identity()
+            self.x = None
+            self.prev_output = None
+            self._base = torch.ones(4, n)
+        def reset(self):
+            self.x = None
+            self.prev_output = None
+        def forward(self, _inp):
+            self.x = self._base.clone() if self.x is None else self.x
+            self.prev_output = self.activation_func(self.x)
+            return self.prev_output
+
+    N = 20
+    net = _FixedBrain()
+    base = net._base.clone()
+    ErrorInjector.apply_dist_error(net, delta=0.2, k=8, seed=1, mode="slow", ramp_steps=N)
+    net.reset()
+    devs = []
+    for _ in range(N):
+        net(None)
+        devs.append((net.x - base).norm().item())
+    assert all(devs[i] <= devs[i + 1] + 1e-6 for i in range(len(devs) - 1)), "ramp not monotonic"
+    assert devs[0] < devs[-1], "ramp did not grow"
+    # final deviation is close to the full one-shot drift magnitude
+    full = _DistributionalDrift(30, 0.2, 8, 1).apply(base)
+    assert abs(devs[-1] - (full - base).norm().item()) < 0.1, "ramp did not reach ~full delta"
+    # reset restarts the ramp (small deviation again)
+    net.reset()
+    net(None)
+    assert (net.x - base).norm().item() < devs[-1], "reset did not re-arm the ramp"
+    # slow mode requires a ramp horizon
+    try:
+        ErrorInjector.apply_dist_error(_FixedBrain(), delta=0.2, mode="slow")
+        assert False, "slow without ramp_steps should raise"
+    except ValueError:
+        pass
+    print("[state-hook] slow ramp is gradual, reaches ~full delta, re-arms on reset OK")
+
+
+def test_state_hook_multi_session_drift_accumulates():
+    """span_trials=True: the session-level drift grows across trials (each trial
+    starts more drifted than the last), reaching full delta over ramp_steps total
+    steps and holding: multi-session MINDFUL drift, distinct from the within-trial
+    ramp which restarts every trial."""
+    torch.manual_seed(0)
+
+    class _FixedBrain(torch.nn.Module):
+        def __init__(self, n=30):
+            super().__init__()
+            self.num_neurons = n
+            self.activation_func = torch.nn.Identity()
+            self.x = None
+            self.prev_output = None
+            self._base = torch.ones(4, n)
+        def reset(self):
+            self.x = None
+            self.prev_output = None
+        def forward(self, _inp):
+            self.x = self._base.clone() if self.x is None else self.x
+            self.prev_output = self.activation_func(self.x)
+            return self.prev_output
+
+    trial_len, n_total = 10, 50   # Full delta after 50 global steps = 5 trials
+    net = _FixedBrain()
+    base = net._base.clone()
+    ErrorInjector.apply_dist_error(net, delta=0.2, k=8, seed=1, mode="slow",
+                                   ramp_steps=n_total, span_trials=True)
+    onset = []
+    for _ in range(7):
+        net.reset()
+        net(None)                                  # Session drift applied at trial start
+        onset.append((net.x - base).norm().item())
+        for _ in range(trial_len - 1):
+            net(None)
+    # grows across the first ~5 trials, then plateaus at full delta
+    assert all(onset[i] <= onset[i + 1] + 1e-6 for i in range(5)), "drift did not accumulate"
+    assert onset[0] < onset[4], "no growth across sessions"
+    full = (_DistributionalDrift(30, 0.2, 8, 1).apply(base) - base).norm().item()
+    assert abs(onset[-1] - full) < 0.05, "did not plateau near full delta"
+    print("[state-hook] multi-session drift accumulates across trials OK")
+
+
+# ---------------------------------------------------------------------------
+# Structural error
+# ---------------------------------------------------------------------------
 def test_structural_capacity_mismatch():
     for n in (20, 40, 160):
         en, _ = ErrorInjector.build_structural_en(37, 50, num_neurons=n)
@@ -215,6 +347,8 @@ ALL_TESTS = [
     test_distributional_magnitude_increases_with_delta,
     test_state_hook_drifts_brain_and_reverts,
     test_state_hook_rejects_non_brain_model,
+    test_state_hook_slow_ramp_is_gradual,
+    test_state_hook_multi_session_drift_accumulates,
     test_structural_capacity_mismatch,
     test_structural_cell_types,
     test_structural_returns_optimizer,

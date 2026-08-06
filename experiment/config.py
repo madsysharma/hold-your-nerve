@@ -40,13 +40,14 @@ class Config:
     drop_neuron_mask: torch.Tensor
     cuda: typing.Any
     holdout_pct: float
-    en_num_neurons: typing.Optional[int] = None #new parameters, typing autosuggestions
+    en_num_neurons: typing.Optional[int] = None # New parameters, typing auto-suggestions
     en_cell_type: str = "lstm"
     en_observer_instance: typing.Optional[observer.Observer] = None
     sigma_p: float = 0.0
     drift_delta: float = 0.0
     drift_k: int = 8
     drift_seed: int = 42
+    drift_ramp: int = -1   # -1 = ramp over one trial (slow); 0 = instant onset; N = N steps
 
     def shuffle_dataset(self):
         _, self.loader_train[0], self.loader_test[0] = get_dataset(
@@ -193,6 +194,7 @@ def get(
     drift_delta=0.0,
     drift_k=8,
     drift_seed=42,
+    drift_ramp=-1,
 ):
 
     if observer_type is observer.ObserverType.passthrough:
@@ -208,12 +210,9 @@ def get(
     else:
         raise ValueError(f"Unrecognized observer type: {observer_type}")
 
-    # en_obs_sigma, when set, builds a SECOND observer with a different
-    # sigma, used only for the EN's view of M1 (see Experiment.run() /
-    # CPNEpochEN.forward()). This is what creates a genuine mismatch between
-    # what the EN was trained to assume and what the true environment/CPN
-    # actually see -- unlike obs_sigma, which changes the shared observer
-    # used by everything.
+    # en_obs_sigma, when set, builds a second observer with a different sigma, used only for the EN's view of M1 (see Experiment.run() /
+    # CPNEpochEN.forward()). This is what creates a genuine mismatch between what the EN was trained to assume and what the true environment/CPN
+    # actually sees - unlike obs_sigma, which changes the shared observer used by everything.
     if en_obs_sigma is None:
         en_observer_instance = None
     elif observer_type in (
@@ -248,7 +247,7 @@ def get(
         if stim_pad_left_neurons != 0:
             raise NotImplementedError()
 
-        # NOTE: can add the num_stim_channels and sigma arg above
+        # NOTE: we can add the num_stim_channels and sigma arg above
         stimulus = stimulation_type.value(
             num_stim_channels,
             num_stim_neurons,
@@ -366,12 +365,13 @@ def get(
         drop_neuron_mask,
         cuda,
         holdout_pct,
-        en_num_neurons=en_num_neurons, #new parameters
+        en_num_neurons=en_num_neurons, # New parameters
         en_cell_type=en_cell_type,
         en_observer_instance=en_observer_instance,
         sigma_p=sigma_p,
         drift_delta=drift_delta,
         drift_k=drift_k,
         drift_seed=drift_seed,
+        drift_ramp=drift_ramp,
     )
     return cfg_out

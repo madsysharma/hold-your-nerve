@@ -23,12 +23,13 @@ from cpn_utils import EpochType
 
 g_logger = logging.getLogger("experiment")
 
-# Rel path pointing to a pre-recovered mRNN
+# Relative path pointing to a pre-recovered mRNN
 RECOV_MODEL_PATH = "experiment/recovered"
 
 
-@attr.s(auto_attribs=True) #basically just dataclass
-class EpochResult: #each epoch in EN mode: send stimuli to mike and update EN weights based on mike data
+@attr.s(auto_attribs=True)
+class EpochResult: 
+    # Each epoch in EN mode: send stimuli to Michaels mRNN and update EN weights based on mRNN data.
     stop: bool = False
     next_is_validation: bool = False
     user_data: stats.UserData = None
@@ -37,7 +38,8 @@ class EpochResult: #each epoch in EN mode: send stimuli to mike and update EN we
         return self.stop, self.next_is_validation, self.user_data
 
 
-def get_vanilla_config(cuda=None, **kwargs): #default lesion is severed F5-M1 and AIP-M1 paths
+def get_vanilla_config(cuda=None, **kwargs): 
+    # Default lesion is severed F5-M1 and AIP-M1 paths
     return get_config(cuda=cuda, **kwargs)
 
 
@@ -47,6 +49,7 @@ def get_coadapt_config(cuda=None, **kwargs):
 
 def get_m1_lesion_config(cuda=None, coadapt=True, **kwargs):
     lesion_type = lesion.LesionType.outputs
+
     # Lesion the neurons with idxs 0-50, which are in M1
     lesion_args = (0, 50)
     return get_config(
@@ -64,6 +67,7 @@ def get_m1_lesion_config(cuda=None, coadapt=True, **kwargs):
 
 def get_aip_lesion_config(cuda=None, coadapt=True, **kwargs):
     lesion_type = lesion.LesionType.outputs
+
     # Lesion the neurons with idxs 200-250, which are in AIP
     lesion_args = (200, 250)
 
@@ -148,7 +152,8 @@ def get_config(
     return cfg
 
 
-class CoProc: #coprocessor template interface
+class CoProc:
+    # Co-processor template interface
     def reset(self):
         """
         Called at the start and continuation of a run.
@@ -254,12 +259,11 @@ class Experiment:
         self.opt_mike = AdamW(self.mike.parameters(), lr=1e-7)
 
         self.observer = cfg.observer_instance
-        #None unless en_obs_sigma was set
-        #generates the EN's deliberately incorrect view of M1.
+        # None unless en_obs_sigma was set, in which case it generates the EN's deliberately incorrect view of M1.
         self.en_observer = cfg.en_observer_instance
 
         (
-            self.comp_loss_healthy, #for healthy and lesioned brain with no CPN, basline stats
+            self.comp_loss_healthy, # For healthy and lesioned brain with no CPN, basline stats
             self.comp_loss_healthy_hand,
             self.comp_loss_lesioned,
             self.comp_loss_lesioned_hand,
@@ -276,7 +280,7 @@ class Experiment:
             self.var_within_healthy,
         )
 
-        assert not (cfg.drop_m1 and cfg.drop_f5), ( #for if we only want aip
+        assert not (cfg.drop_m1 and cfg.drop_f5), ( # For if we only want AIP
             "Can drop observations from "
             "only one module. File a feature request if you need more."
         )
@@ -420,7 +424,7 @@ class Experiment:
                 )
                 obs = obs_raw + (trial_end[:, tidx, :],)
 
-                #use structurally incorrect observer (wrong sigma)
+                # Use the structurally incorrect observer (wrong sigma)
                 if self.en_observer is not None and self.obs_drop_module_idx != 0:
                     en_obs_override = ErrorInjector.apply_observation_mismatch(
                         self.mike,
@@ -433,8 +437,7 @@ class Experiment:
 
                 stim = self._coproc_forward(obs, en_obs_override=en_obs_override)
 
-                # new_stim will be cloned in here, to prevent accidentally
-                # backprop-ing through the "brain", aka mike.
+                # new_stim will be cloned in here, to prevent accidentally backpropagating through the "brain", aka mike.
                 self.mike.stimulate(stim)
 
                 mike_out = self.mike(din[:, tidx + 1, :].T)
@@ -467,24 +470,32 @@ class Experiment:
             # do now.
             result = self._coproc_finish(self.loss_history)
 
-            # --- Distributional-error injection (once, at EN->CPN handoff) ---
-            # The first time the co-processor enters CPN training, the EN is
-            # frozen on the pre-drift brain (cpn.py freezes it at this handoff).
-            # Drift the brain now via a forward hook on self.mike, so the CPN is
-            # trained/evaluated against a stale EN.
+            # Distributional-error injection (once, at EN->CPN handoff):
+            # The first time the co-processor enters CPN training, the EN is frozen on the pre-drift brain (cpn.py freezes it at this handoff).
+            # Drift the brain now via a forward hook on self.mike, so the CPN is trained/evaluated against a stale EN.
             if (getattr(self.cfg, "drift_delta", 0.0) > 0.0
                     and not getattr(self, "_drift_injected", False)
                     and self.coproc.epoch_type in (EpochType.CPN, EpochType.VAL_CPN)):
-                from error_injection import ErrorInjector
+                # Resolve the drift timescale: drift_ramp < 0 means "ramp over one trial" (slow, per the definition) -> use the trial length;
+                # 0 means instantaneous onset; N > 0 ramps over N steps.
+                # drift_ramp: -1 = slow ramp within one trial (resets each trial, horizon = trial length); 0 = instantaneous onset;
+                # N > 0 = slow ramp across trials over N total steps (multi-session MINDFUL drift that accumulates, span_trials).
+                _ramp = getattr(self.cfg, "drift_ramp", -1)
+                _span = _ramp > 0
+                if _ramp < 0:
+                    _ramp = self.cfg.trial_length
+                _mode = "slow" if _ramp and _ramp != 0 else "onset"
                 ErrorInjector.apply_dist_error(
                     self.mike,
                     delta=self.cfg.drift_delta,
                     k=getattr(self.cfg, "drift_k", 8),
                     seed=getattr(self.cfg, "drift_seed", 42),
-                    mode="onset",
+                    mode=_mode,
+                    ramp_steps=(_ramp if _mode == "slow" else None),
+                    span_trials=_span,
                 )
                 self._drift_injected = True
-            # ----------------------------------------------------------------
+
             should_stop, next_is_validation, user_data = result.unpack()
 
             if self.cfg.coadapt and (

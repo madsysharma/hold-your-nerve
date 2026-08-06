@@ -476,12 +476,26 @@ class Experiment:
                     and not getattr(self, "_drift_injected", False)
                     and self.coproc.epoch_type in (EpochType.CPN, EpochType.VAL_CPN)):
                 from error_injection import ErrorInjector
+                # Resolve the drift timescale: drift_ramp < 0 means "ramp over
+                # one trial" (slow, per the definition) -> use the trial length;
+                # 0 means instantaneous onset; N > 0 ramps over N steps.
+                # drift_ramp: -1 = slow ramp WITHIN one trial (resets each
+                # trial, horizon = trial length); 0 = instantaneous onset;
+                # N > 0 = slow ramp ACROSS trials over N total steps
+                # (multi-session MINDFUL drift that accumulates, span_trials).
+                _ramp = getattr(self.cfg, "drift_ramp", -1)
+                _span = _ramp > 0
+                if _ramp < 0:
+                    _ramp = self.cfg.trial_length
+                _mode = "slow" if _ramp and _ramp != 0 else "onset"
                 ErrorInjector.apply_dist_error(
                     self.mike,
                     delta=self.cfg.drift_delta,
                     k=getattr(self.cfg, "drift_k", 8),
                     seed=getattr(self.cfg, "drift_seed", 42),
-                    mode="onset",
+                    mode=_mode,
+                    ramp_steps=(_ramp if _mode == "slow" else None),
+                    span_trials=_span,
                 )
                 self._drift_injected = True
             # ----------------------------------------------------------------

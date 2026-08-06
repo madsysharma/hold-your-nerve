@@ -47,6 +47,7 @@ class Config:
     drift_delta: float = 0.0
     drift_k: int = 8
     drift_seed: int = 42
+    drift_ramp: int = -1   # -1 = ramp over one trial (slow); 0 = instant onset; N = N steps
 
     def shuffle_dataset(self):
         _, self.loader_train[0], self.loader_test[0] = get_dataset(
@@ -193,6 +194,7 @@ def get(
     drift_delta=0.0,
     drift_k=8,
     drift_seed=42,
+    drift_ramp=-1,
 ):
 
     if observer_type is observer.ObserverType.passthrough:
@@ -373,5 +375,6 @@ def get(
         drift_delta=drift_delta,
         drift_k=drift_k,
         drift_seed=drift_seed,
+        drift_ramp=drift_ramp,
     )
     return cfg_out

@@ -1,5 +1,5 @@
 # Python
-__pycache__/
+__pycache__/*.pyc
 *.py[cod]
 *$py.class
 *.so
@@ -20,10 +20,13 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-tests/__pycache__/
+tests/__pycache__/*.pyc
 models/*/
-models/
-experiment/__pycache__/
+models/*
+experiment/__pycache__/*.pyc
+.pytest_cache/
+*.pyc
+__pycache__/
 
 # Virtual Environment
 .venv/

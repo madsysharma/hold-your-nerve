@@ -147,13 +147,6 @@ def stim_diagnostics(theta: torch.Tensor, calib: Optional[StimCalibration] = Non
     }
 
 
-def predictive_width(ensemble: EnsembleLike, x_t: torch.Tensor, z: float = 1.96) -> torch.Tensor:
-    #how wide is the range of muscle activations plausible for this trial (batch,).
-    mu, var = ensemble.forward(x_t)                             #(M, batch, out_dim)
-    total_var = var.mean(dim=0) + mu.var(dim=0, unbiased=False) #aleatoric + epistemic
-    return (2.0 * z * total_var.clamp_min(0.0).sqrt()).mean(dim=-1)
-
-
 class SupportModel: #predict if a (neural_activity,stimulation) is OOD or not. In statistics, support is the region where we have data
 
     DEFAULT_MIN_SAMPLES = 2000 #minimum number of samples to fit the support model, otherwise we don't have enough data to estimate mean and std
@@ -258,10 +251,14 @@ def ood_fraction(ensemble: Optional[EnsembleLike], x_t: torch.Tensor,
         raise ValueError("ood_fraction needs an ensemble, or support=<fitted SupportModel>.")
 
     #forward() takes one timestep at a time, and members are recurrent
-    #wherever predictive width>width_threshold for a trial at a timestep, add a true flag, otherwise false. Stack flags and see how often we were OOD in a given trial
+    #predictive width = 2*z*sigma over the members' mean predicted variance plus the spread of their
+    #means. Flag a step wherever that beats width_threshold, then see how often per trial
     flags = []
     for t in range(X.shape[1]):
-        flags.append(predictive_width(ensemble, X[:, t], z=z)>width_threshold)
+        mu, var = ensemble.forward(X[:, t])                          #(M, batch, out_dim)
+        total_var = var.mean(dim=0) + mu.var(dim=0, unbiased=False)  #aleatoric + epistemic
+        width = (2.0 * z * total_var.clamp_min(0.0).sqrt()).mean(dim=-1)
+        flags.append(width > width_threshold)
     return torch.stack(flags, dim=1).float().mean(dim=1)
 
 
@@ -300,9 +297,3 @@ def hard_halt(u: torch.Tensor, threshold: float, penalty: float) -> torch.Tensor
     return torch.where(u > threshold,
                        torch.full_like(u, penalty),
                        torch.zeros_like(u))
-
-
-def halt_mask(u: torch.Tensor, threshold: float, latch: Optional[torch.Tensor] = None):
-    #hard_halt: which trials should stop being stimulated
-    over = u > threshold
-    return over if latch is None else (latch | over)

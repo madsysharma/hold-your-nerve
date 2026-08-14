@@ -47,16 +47,7 @@ def uncertainty(ensemble: EnsembleLike, x_t: torch.Tensor,
         return _mc_dropout(ensemble, x_t, n_passes)
 
     mu, var = ensemble.forward(x_t)                     # (M, batch, out_dim)
-    return _from_moments(mu, var, estimator)
 
-
-def _from_moments(mu: torch.Tensor, var: torch.Tensor,
-                  estimator: Estimator) -> torch.Tensor:
-    """The estimators that are a closed-form function of the members' moments.
-
-    Split out so the calibration analysis can score a batch from a single
-    forward pass instead of calling forward once for u and again for the error.
-    """
     if estimator == Estimator.MAX_FROBENIUS:
         # Each member is diagonal-Gaussian, so ||Sigma_i||_F = sqrt(sum_j var_ij^2).
 
@@ -76,30 +67,15 @@ def _from_moments(mu: torch.Tensor, var: torch.Tensor,
 
         return var[0].sum(dim=-1)                       # (batch,)
 
-    if estimator == Estimator.MC_DROPOUT:
-        raise ValueError("MC_DROPOUT is not a function of the moments; call uncertainty().")
-
     raise ValueError(f"unknown estimator: {estimator}")
 
 
 def _dropout_modules(ensemble: EnsembleLike) -> list:
-    #every dropout layer we can reach, on the ensemble itself or on its members
+    #every dropout layer in the ensemble. .modules() already walks into the members
     #match by class name so Dropout1d/2d/3d and AlphaDropout all count, whatever torch version
-    found, seen = [], set()
-    candidates = [ensemble]
-    for attr in ("members", "ens", "nets"):
-        got = getattr(ensemble, attr, None)
-        if got is not None:
-            candidates.extend(got)
-
-    for obj in candidates:
-        if not isinstance(obj, torch.nn.Module):
-            continue
-        for m in obj.modules():
-            if "Dropout" in type(m).__name__ and id(m) not in seen:
-                seen.add(id(m))
-                found.append(m)
-    return found
+    if not isinstance(ensemble, torch.nn.Module):
+        return []
+    return [m for m in ensemble.modules() if "Dropout" in type(m).__name__]
 
 
 def _mc_dropout(ensemble: EnsembleLike, x_t: torch.Tensor,
@@ -123,11 +99,9 @@ def _mc_dropout(ensemble: EnsembleLike, x_t: torch.Tensor,
     was_training = [m.training for m in mods]
     for m in mods:
         m.train()                                       # dropout ON at inference
-    try:
-        passes = [ensemble.forward(x_t)[0] for _ in range(n_passes)]
-    finally:
-        for m, prev in zip(mods, was_training):
-            m.train(prev)                               # leave the ensemble as we found it
+    passes = [ensemble.forward(x_t)[0] for _ in range(n_passes)]
+    for m, prev in zip(mods, was_training):
+        m.train(prev)                                   # leave the ensemble as we found it
 
     stacked = torch.stack(passes, dim=0)                          # (P, M, batch, out_dim)
     per_member = stacked.var(dim=0, unbiased=False).sum(dim=-1)   # (M, batch)
@@ -138,25 +112,18 @@ def calibration_curve(ensemble: EnsembleLike, dataloader, error_axis: str,
                       *, estimator: Estimator = Estimator.MAX_FROBENIUS,
                       n_bins: int = 10) -> Tuple[torch.Tensor, torch.Tensor]:
     #does u actually predict the EN's error? bin by u, report the real error in each bin
-    #dataloader yields (x_t, target), either one step (batch, in_dim) or a rollout (batch, T, in_dim)
+    #dataloader yields (x_t, target) one timestep at a time: (batch, in_dim) and (batch, out_dim)
     #real error = |mu_bar - target| averaged over the 50 output dims
-    #equal-COUNT bins, not equal-width: u is right-skewed so fixed widths dump nearly everything in bin 0
     #calibrated = the curve rises. H4 says it rises on parametric/distributional and goes flat on
     #structural, where members sharing a wrong architecture agree confidently while being wrong
     if error_axis not in ERROR_AXES:
         raise ValueError(f"unknown error axis: {error_axis!r}. Options: {ERROR_AXES}")
-    if estimator == Estimator.MC_DROPOUT:
-        raise ValueError(
-            "calibration_curve scores u and the error from one forward pass; "
-            "MC_DROPOUT resamples, so there is no single prediction to bin against."
-        )
 
     us, errs = [], []
-    for x_t, target in dataloader:
-        for x, y in _walk_steps(x_t, target):
-            mu, var = ensemble.forward(x)               # (M, batch, out_dim)
-            us.append(_from_moments(mu, var, estimator).detach().flatten())
-            errs.append((mu.mean(dim=0) - y).abs().mean(dim=-1).detach().flatten())
+    for x, y in dataloader:
+        us.append(uncertainty(ensemble, x, estimator).detach().flatten())
+        mu, _var = ensemble.forward(x)                  # (M, batch, out_dim)
+        errs.append((mu.mean(dim=0) - y).abs().mean(dim=-1).detach().flatten())
 
     if not us:
         raise ValueError("dataloader yielded no batches; nothing to calibrate.")
@@ -164,32 +131,16 @@ def calibration_curve(ensemble: EnsembleLike, dataloader, error_axis: str,
     u_all = torch.cat(us)
     e_all = torch.cat(errs)
 
-    qs = torch.linspace(0.0, 1.0, n_bins + 1, device=u_all.device, dtype=u_all.dtype)
-    edges = torch.quantile(u_all, qs)
+    edges = torch.linspace(u_all.min().item(), u_all.max().item(), n_bins + 1,
+                           device=u_all.device, dtype=u_all.dtype)
     idx = torch.bucketize(u_all, edges[1:-1].contiguous())
 
     centers, means = [], []
     for b in range(n_bins):
         sel = idx == b
-        if not bool(sel.any()):                         # ties collapse bins; skip the empties
+        if not bool(sel.any()):                         # skip bins nothing landed in
             continue
         centers.append(u_all[sel].mean())
         means.append(e_all[sel].mean())
 
     return torch.stack(centers), torch.stack(means)
-
-
-def _walk_steps(x_t: torch.Tensor, target: torch.Tensor):
-    #hand back (x, y) one timestep at a time, for a single step or a whole rollout
-    #members are recurrent, so a rollout gets walked in order instead of flattened into one big batch
-    if x_t.dim() == 2:
-        yield x_t, target
-        return
-    if x_t.dim() != 3:
-        raise ValueError(f"expected (batch, in_dim) or (batch, T, in_dim), got {tuple(x_t.shape)}")
-    if target.shape[1] != x_t.shape[1]:
-        raise ValueError(
-            f"x_t has {x_t.shape[1]} timesteps but target has {target.shape[1]}."
-        )
-    for t in range(x_t.shape[1]):
-        yield x_t[:, t], target[:, t]

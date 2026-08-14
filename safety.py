@@ -131,6 +131,22 @@ def charge_damage_fraction(theta: torch.Tensor, k_threshold: float = SHANNON_K_T
     return over.any(dim=-1).float().mean(dim=1)      #.any() returns true if any channel is over threshold
 
 
+def stim_diagnostics(theta: torch.Tensor, calib: Optional[StimCalibration] = None) -> dict:
+    #reporting only, NOT part of the cost. Scalars for a run summary
+    #amp_p99 is the reference_amp that calibrate_ua_per_unit wants: without it there is
+    #nothing to calibrate ua_per_unit against and the k threshold is measured off an arbitrary default
+    calib = calib or StimCalibration()
+    S = _as_steps(theta)
+    amps = S.abs().flatten()
+    return {
+        "amp_max": amps.max().item(),
+        "amp_p99": amps.quantile(0.99).item(),
+        "shannon_k_max": calib.shannon_k(S).max().item(),
+        "charge_per_phase_uc_max": calib.charge_per_phase_uc(S).max().item(),
+        "stim_energy_mean": stim_energy(theta).mean().item(),
+    }
+
+
 def predictive_width(ensemble: EnsembleLike, x_t: torch.Tensor, z: float = 1.96) -> torch.Tensor:
     #how wide is the range of muscle activations plausible for this trial (batch,).
     mu, var = ensemble.forward(x_t)                             #(M, batch, out_dim)
@@ -200,7 +216,7 @@ class SupportModel: #predict if a (neural_activity,stimulation) is OOD or not. I
         self._mean = self._sum / self.n
         var = torch.diagonal(self._sumsq) / self.n - self._mean ** 2
         self._std = var.clamp(min=1e-6).sqrt()
-        if self.threshold is None and self._filled > 0: #measured, not assumed. Recompute from raw rows so it matches the mean/std just set
+        if self.threshold is None and self._filled > 0 and self._reservoir is not None: #measured, not assumed. Recompute from raw rows so it matches the mean/std just set
             self.threshold = torch.quantile(self.score(self._reservoir[:self._filled]), self.quantile).item() #Z score technically doesnt imply normality, can still use to find percentiles
         self.is_fitted = True
         return True

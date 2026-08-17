@@ -1,14 +1,20 @@
 # experiment/corrupt.py
 
 import copy
+import sys
+from pathlib import Path
 import torch
 import torch.nn as nn
 
-# Adjust import according to your repo structure (e.g., from stage1.error_injection import ErrorInjector)
+# Ensure repository root is in sys.path so root modules (error_injection.py) can be imported
+repo_root = Path(__file__).resolve().parent.parent
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
+
 try:
     from error_injection import ErrorInjector
 except ImportError:
-    from stage1.error_injection import ErrorInjector
+    from stage1_error_injection import ErrorInjector
 
 
 def corrupt(EN_model: nn.Module, axis: str, magnitude: float) -> nn.Module:

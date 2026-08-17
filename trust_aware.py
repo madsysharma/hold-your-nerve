@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from ensemble_types import EnsembleLike
-from uncertainty import Estimator, uncertainty
+from uncertainty import Estimator, uncertainty_from
 from safety import SafetyWeights, safety_cost, soft_penalty, hard_halt
 
 
@@ -81,19 +81,23 @@ class EnsembleENAdapter(nn.Module):
         super().__init__()
         self.ensemble = ensemble
         self.estimator = estimator
-        self._last_input = None
+        self._last = None                           # cached (mu, var) from forward
 
     def forward(self, en_in: torch.Tensor) -> torch.Tensor:
-        mu, _var = self.ensemble.forward(en_in)     # (M, batch, out_dim)
-        self._last_input = en_in
+        mu, var = self.ensemble.forward(en_in)      # (M, batch, out_dim)
+        self._last = (mu, var)                       # cache both, not just the input
         return mu.mean(dim=0)                        # mu_bar, (batch, out_dim)
 
     def last_uncertainty(self) -> torch.Tensor:
-        """Uncertainty for the most recent forward input, (batch,)."""
-        if self._last_input is None:
+        """Uncertainty for the most recent forward, (batch,). Computed from the
+        cached member outputs, so it does NOT run the ensemble a second time --
+        a second forward would double-step recurrent (LSTM) members and score the
+        uncertainty on a different state than the prediction."""
+        if self._last is None:
             raise RuntimeError("Call the adapter on an input before last_uncertainty()")
-        return uncertainty(self.ensemble, self._last_input, self.estimator)
+        mu, var = self._last
+        return uncertainty_from(mu, var, self.estimator)
 
     def reset(self):
         self.ensemble.reset()
-        self._last_input = None
+        self._last = None

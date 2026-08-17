@@ -28,6 +28,32 @@ class Estimator(str, Enum):
     SINGLE_VAR = "single_var"         # One member's predicted variance: pure-aleatoric baseline
 
 
+def uncertainty_from(mu: torch.Tensor, var: torch.Tensor,
+                     estimator: Estimator = Estimator.MAX_FROBENIUS) -> torch.Tensor:
+    """Compute a batch-wise uncertainty from ALREADY-COMPUTED member outputs, so a
+    caller that has just run the ensemble forward does not have to run it again.
+    This is what lets EnsembleENAdapter read the uncertainty of the prediction it
+    just made without a second forward (which would double-step recurrent members).
+
+    mu, var: (M, batch, out_dim) per-member means and predicted variances.
+    Returns (batch,). MC_DROPOUT is not available here because it inherently needs
+    multiple stochastic passes; call uncertainty(ensemble, x_t, MC_DROPOUT) instead.
+    """
+    if estimator == Estimator.MAX_FROBENIUS:
+        frob = torch.sqrt((var ** 2).sum(dim=-1))       # (M, batch)
+        return frob.max(dim=0).values                   # (batch,)
+    if estimator == Estimator.DISAGREEMENT:
+        return mu.var(dim=0, unbiased=False).sum(dim=-1)  # (batch,)
+    if estimator == Estimator.SINGLE_VAR:
+        return var[0].sum(dim=-1)                       # (batch,)
+    if estimator == Estimator.MC_DROPOUT:
+        raise ValueError(
+            "MC_DROPOUT needs multiple stochastic passes and cannot be computed "
+            "from a single cached forward; call uncertainty(ensemble, x_t, "
+            "Estimator.MC_DROPOUT) directly.")
+    raise ValueError(f"unknown estimator: {estimator}")
+
+
 def uncertainty(ensemble: EnsembleLike, x_t: torch.Tensor,
                 estimator: Estimator = Estimator.MAX_FROBENIUS,
                 *, n_passes: int = DEFAULT_MC_PASSES) -> torch.Tensor:
@@ -47,27 +73,11 @@ def uncertainty(ensemble: EnsembleLike, x_t: torch.Tensor,
         return _mc_dropout(ensemble, x_t, n_passes)
 
     mu, var = ensemble.forward(x_t)                     # (M, batch, out_dim)
-
-    if estimator == Estimator.MAX_FROBENIUS:
-        # Each member is diagonal-Gaussian, so ||Sigma_i||_F = sqrt(sum_j var_ij^2).
-
-        frob = torch.sqrt((var ** 2).sum(dim=-1))       # (M, batch)
-        return frob.max(dim=0).values                   # (batch,)
-
-    if estimator == Estimator.DISAGREEMENT:
-        # Spread of member means, summed over output dims.
-
-        return mu.var(dim=0, unbiased=False).sum(dim=-1)  # (batch,)
-
-    if estimator == Estimator.SINGLE_VAR:
-        # One member's own predicted variance, carrying no cross-member
-        # information at all. The pure-aleatoric baseline: if it tracks
-        # MAX_FROBENIUS, the ensemble is buying nothing over a single
-        # probabilistic network.
-
-        return var[0].sum(dim=-1)                       # (batch,)
-
-    raise ValueError(f"unknown estimator: {estimator}")
+    # MAX_FROBENIUS (diagonal-Gaussian ||Sigma_i||_F), DISAGREEMENT (spread of
+    # member means), and SINGLE_VAR (one member's variance -- the pure-aleatoric
+    # baseline) are all pure functions of (mu, var); share that logic so a caller
+    # holding (mu, var) can reuse it without a second forward.
+    return uncertainty_from(mu, var, estimator)
 
 
 def _dropout_modules(ensemble: EnsembleLike) -> list:

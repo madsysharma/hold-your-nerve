@@ -1,17 +1,25 @@
+# experiment/corrupt.py
+
 import copy
-import numpy as np
 import torch
 import torch.nn as nn
 
+# Adjust import according to your repo structure (e.g., from stage1.error_injection import ErrorInjector)
+try:
+    from error_injection import ErrorInjector
+except ImportError:
+    from stage1.error_injection import ErrorInjector
 
-def corrupt(EN_model, axis: str, magnitude: float):
+
+def corrupt(EN_model: nn.Module, axis: str, magnitude: float) -> nn.Module:
     """Unified corruption interface for Emulator Networks (EN).
+
+    Delegates transformation logic directly to Stage 1 ErrorInjector.
 
     Args:
         EN_model (nn.Module): PyTorch Emulator Network model.
         axis (str): One of 'parametric', 'distributional', or 'structural'.
-        magnitude (float): Noise magnitude (sigma_p, delta angle/shift, or
-          variant ID).
+        magnitude (float): Noise magnitude (sigma_p, delta angle/shift, or variant ID).
 
     Returns:
         nn.Module: Corrupted emulator network instance.
@@ -19,86 +27,57 @@ def corrupt(EN_model, axis: str, magnitude: float):
     corrupted_model = copy.deepcopy(EN_model)
 
     if axis == "parametric":
-        # w_new = w + epsilon, where epsilon ~ N(0, sigma_p^2 * Var(w))
-        sigma_p = magnitude
-        with torch.no_grad():
-            for param in corrupted_model.parameters():
-                if param.requires_grad:
-                    var_w = torch.var(param)
-                    if var_w == 0 or torch.isnan(var_w):
-                        continue
-                    std_noise = sigma_p * torch.sqrt(var_w)
-                    noise = torch.randn_like(param) * std_noise
-                    param.add_(noise)
+        return ErrorInjector.apply_param_error(
+            corrupted_model, sigma_p=float(magnitude)
+        )
 
     elif axis == "distributional":
-        # Applies planar rotation R(delta) and translation T(delta) to latent features
-        delta = magnitude
+        delta_val = float(magnitude)
+        # If model is an mRNN with num_neurons attribute, use hook drift
+        if hasattr(corrupted_model, "num_neurons"):
+            return ErrorInjector.apply_dist_error(corrupted_model, delta=delta_val)
+        else:
+            # Fallback for standard PyTorch EN modules using standalone tensor drift
+            def hook_fn(module, input, output):
+                latent = output[0] if isinstance(output, tuple) else output
+                drifted = ErrorInjector.apply_distributional_error(
+                    latent, delta=delta_val
+                )
+                return (drifted, output[1]) if isinstance(output, tuple) else drifted
 
-        def hook_fn(module, input, output):
-            if isinstance(output, tuple):
-                latent = output[0]
-            else:
-                latent = output
-
-            # Construct 2D rotation matrix R(delta)
-            cos_d, sin_d = np.cos(delta), np.sin(delta)
-            R = torch.tensor(
-                [[cos_d, -sin_d], [sin_d, cos_d]],
-                dtype=latent.dtype,
-                device=latent.device,
+            target_layer = getattr(
+                corrupted_model,
+                "rnn",
+                getattr(corrupted_model, "fc1", corrupted_model),
             )
-
-            # Rotate first two dimensions and translate across features
-            transformed = latent.clone()
-            if transformed.shape[-1] >= 2:
-                transformed[..., :2] = torch.matmul(transformed[..., :2], R)
-            transformed = transformed + delta
-            return (
-                (transformed, output[1])
-                if isinstance(output, tuple)
-                else transformed
-            )
-
-        # Attach forward hook to latent/recurrent layer
-        target_layer = getattr(
-            corrupted_model,
-            "rnn",
-            getattr(corrupted_model, "fc1", corrupted_model),
-        )
-        target_layer.register_forward_hook(hook_fn)
+            target_layer.register_forward_hook(hook_fn)
+            return corrupted_model
 
     elif axis == "structural":
-        # Structural variants: 0 -> 20-unit LSTM, 1 -> GRU, 2 -> Electrode spread mismatch
         variant_id = int(magnitude)
-        corrupted_model = _build_structural_variant(
-            variant_id, base_model=EN_model
-        )
+        return _build_structural_variant(variant_id, base_model=EN_model)
 
-    return corrupted_model
+    else:
+        raise ValueError(f"Unknown corruption axis: {axis}")
 
 
-def _build_structural_variant(variant_id: int, base_model):
-    """Instantiates architectural mismatched surrogates."""
+def _build_structural_variant(variant_id: int, base_model: nn.Module) -> nn.Module:
+    """Instantiates architectural mismatched surrogates using Stage 1 ErrorInjector."""
+    in_dim = getattr(base_model, "input_size", getattr(base_model, "in_dim", 100))
+    out_dim = getattr(base_model, "output_size", getattr(base_model, "out_dim", 10))
+
     if variant_id == 0:
         # 20-unit LSTM bottleneck mismatch
-        return nn.LSTM(
-            input_size=base_model.input_size
-            if hasattr(base_model, "input_size")
-            else 100,
-            hidden_size=20,
-            batch_first=True,
+        return ErrorInjector.build_structural_en(
+            in_dim=in_dim, out_dim=out_dim, num_neurons=20, cell_type="lstm"
         )
     elif variant_id == 1:
         # GRU architectural mismatch
-        return nn.GRU(
-            input_size=base_model.input_size
-            if hasattr(base_model, "input_size")
-            else 100,
-            hidden_size=base_model.hidden_size
-            if hasattr(base_model, "hidden_size")
-            else 64,
-            batch_first=True,
+        hidden_size = getattr(
+            base_model, "hidden_size", getattr(base_model, "num_neurons", 64)
+        )
+        return ErrorInjector.build_structural_en(
+            in_dim=in_dim, out_dim=out_dim, num_neurons=hidden_size, cell_type="gru"
         )
     elif variant_id == 2:
         # Spatial electrode dispersion mismatch

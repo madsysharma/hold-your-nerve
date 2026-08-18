@@ -188,6 +188,18 @@ class CPN_EN_CoProc(experiment.CoProc):
 
         return new_stim
 
+    @property
+    def is_cpn_epoch(self):
+        return self.epoch_type in (EpochType.CPN, EpochType.VAL_CPN)
+
+    @property
+    def recent_apparent_task_loss(self):
+        return getattr(self.cpn_epoch, "recent_apparent_task_loss", None)
+
+    @property
+    def recent_stim_cost_samples(self):
+        return getattr(self.cpn_epoch, "recent_stim_cost_samples", None)
+
     def feedback(self, actuals, targets, trial_end, loss_history):
         if self.epoch_type in (EpochType.EN, EpochType.VAL_EN):
             self.en_epoch.feedback(

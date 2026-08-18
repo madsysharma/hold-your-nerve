@@ -37,6 +37,8 @@ class CPNEpochCPN:
         # self.reg_stim_weight = 2e-8
         self.reg_stim_weight = None
         self.stims = []
+        self.recent_apparent_task_loss = None   # eta_hat's task loss (EN preds vs targets)
+        self.recent_stim_cost_samples = None    # per-step per-batch stim costs, for CVaR
 
         if cfg.recover_after_lesion:
             self.set_opt_lr = self.lr_sched_aggressive_refine3
@@ -59,6 +61,8 @@ class CPNEpochCPN:
         self.preds = None
         self.tidx = 0
         self.stims = []
+        self.recent_apparent_task_loss = None   # eta_hat's task loss (EN preds vs targets)
+        self.recent_stim_cost_samples = None    # per-step per-batch stim costs, for CVaR
         self.reset_models()
 
     def reset_models(self):
@@ -108,6 +112,21 @@ class CPNEpochCPN:
 
         pred_loss = calc_pred_loss(preds, actuals)
         train_loss = calc_train_loss(preds, targets)
+
+        # Dual-recovery + safety instrumentation (additive; no effect on training).
+        # Apparent task loss eta_hat: the EN's predictions vs the behavioural
+        # targets -- what the CPN 'sees' through the emulator. Scored with the
+        # same calc_task_loss used for true recovery so Delta is apples-to-apples.
+        from experiment.stats import calc_task_loss
+        self.recent_apparent_task_loss = calc_task_loss(preds, targets).item()
+        # Per-step, per-trial stimulation cost samples (squared L2 per step),
+        # flattened over steps and batch, for the stim-cost CVaR.
+        if self.stims:
+            per_step = torch.stack(
+                [(st.detach() ** 2).sum(dim=-1) for st in self.stims], dim=0)  # (T, batch)
+            self.recent_stim_cost_samples = per_step.flatten()
+        else:
+            self.recent_stim_cost_samples = None
 
         if self.reg_stim_weight is not None:
             # Regularizing applied stimulation

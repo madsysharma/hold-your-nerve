@@ -19,7 +19,7 @@ def calc_task_loss(actuals, targets):
 
 def cvar(costs, alpha=0.95):
     """Conditional Value at Risk of a cost sample: the mean of the worst
-    (1 - alpha) tail. Used for the stimulation-cost safety metric -- it captures
+    (1 - alpha) tail. Used for the stimulation-cost safety metric: it captures
     the tail of large stimulations, not just the average. Returns a float, or
     None if there is nothing to score."""
     if costs is None:

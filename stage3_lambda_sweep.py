@@ -20,7 +20,7 @@ import sys
 
 import torch
 
-from uncertainty import Estimator, uncertainty
+from uncertainty import Estimator, uncertainty, uncertainty_from
 from safety import (SafetyWeights, StimCalibration, safety_cost, soft_penalty,
                     hard_halt, charge_damage_fraction)
 
@@ -63,7 +63,12 @@ def run_grid(ensemble, x_t, theta, target, halt_threshold, *, weights=None, cali
     weights = weights or SafetyWeights()
     calib = calib or StimCalibration()
 
-    pred = ensemble.forward(x_t)[0].mean(dim=0)
+    # Forward the ensemble once; reuse (mu, var) for the mean prediction and
+    # every variance/disagreement estimator below, so recurrent members are not
+    # stepped once per estimator (which would score each estimator on a
+    # different, further-advanced state than the prediction).
+    mu, var = ensemble.forward(x_t)
+    pred = mu.mean(dim=0)
     mse = torch.nn.functional.mse_loss(pred, target).item()
     c_safety = safety_cost(theta, ensemble=ensemble, x_t=x_t,
                            weights=weights, calib=calib).mean().item()
@@ -73,7 +78,12 @@ def run_grid(ensemble, x_t, theta, target, halt_threshold, *, weights=None, cali
     rows = []
     for est in ESTIMATOR_GRID:
         try:
-            u = uncertainty(ensemble, x_t, est)
+            # MC_DROPOUT genuinely needs multiple stochastic passes; the rest are
+            # pure functions of the single (mu, var) already computed.
+            if est == Estimator.MC_DROPOUT:
+                u = uncertainty(ensemble, x_t, est)
+            else:
+                u = uncertainty_from(mu, var, est)
         except RuntimeError as e:                    #MC_DROPOUT with no dropout layers
             print(f"  SKIP {est.value}: {str(e).splitlines()[0]}")
             continue

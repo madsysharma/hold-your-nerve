@@ -49,7 +49,7 @@ def test_wrapper_satisfies_protocol():
 
 def test_variance_estimators_report_zero_on_single_headed_members():
     # They still run, but var = 0 makes them read as perfectly certain everywhere. Those rows are
-    # "not measured", not "no uncertainty" -- they only mean something once members emit a variance.
+    # "not measured", not "no uncertainty": they only mean something once members emit a variance.
     rows = run_grid(*_setup(), halt_threshold=0.5)
     scored = {r["estimator"] for r in rows}
     assert {"disagreement", "max_frobenius", "single_var"} <= scored

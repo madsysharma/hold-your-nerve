@@ -48,6 +48,7 @@ class Config:
     drift_k: int = 8
     drift_seed: int = 42
     drift_ramp: int = -1   # -1 = ramp over one trial (slow); 0 = instant onset; N = N steps
+    stim_ua_per_unit: float = None   # calibrate the Shannon damage proxy; None = default (trend-valid)
 
     def shuffle_dataset(self):
         _, self.loader_train[0], self.loader_test[0] = get_dataset(
@@ -195,6 +196,7 @@ def get(
     drift_k=8,
     drift_seed=42,
     drift_ramp=-1,
+    stim_ua_per_unit=None,
 ):
 
     if observer_type is observer.ObserverType.passthrough:
@@ -373,5 +375,6 @@ def get(
         drift_k=drift_k,
         drift_seed=drift_seed,
         drift_ramp=drift_ramp,
+        stim_ua_per_unit=stim_ua_per_unit,
     )
     return cfg_out

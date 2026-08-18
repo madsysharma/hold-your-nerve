@@ -90,7 +90,7 @@ class EnsembleENAdapter(nn.Module):
 
     def last_uncertainty(self) -> torch.Tensor:
         """Uncertainty for the most recent forward, (batch,). Computed from the
-        cached member outputs, so it does NOT run the ensemble a second time --
+        cached member outputs, so it does NOT run the ensemble a second time:
         a second forward would double-step recurrent (LSTM) members and score the
         uncertainty on a different state than the prediction."""
         if self._last is None:

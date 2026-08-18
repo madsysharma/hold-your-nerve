@@ -153,15 +153,18 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
     eta_hat = loss_history.apparent_at_max_recov
     delta = loss_history.gap_at_max_recov
     cvar_val = loss_history.cvar_at_max_recov
+    dmg = loss_history.damage_frac_at_max_recov
     eta_hat_s = f"{eta_hat * 100:.1f}%" if eta_hat is not None else "n/a"
     delta_s = f"{delta * 100:+.1f}pp" if delta is not None else "n/a"
     cvar_s = f"{cvar_val:.4e}" if cvar_val is not None else "n/a"
+    dmg_s = f"{dmg * 100:.1f}%" if dmg is not None else "n/a"
     print("\n" + "-" * 72)
     print(f"  RESULT for {lesion_key} [{label}]:")
     print(f"    true recovery   eta      = {max_recov * 100:.1f}% (peak)")
     print(f"    apparent recov  eta_hat  = {eta_hat_s}   (what the CPN sees via the EN)")
     print(f"    exploitation gap Delta   = {delta_s}   (eta_hat - eta)")
     print(f"    stim-cost CVaR (0.95)    = {cvar_s}")
+    print(f"    damage-proxy fraction    = {dmg_s}   (Shannon k; violation metric)")
     print("-" * 72 + "\n")
     sys.stdout.flush()
     return max_recov

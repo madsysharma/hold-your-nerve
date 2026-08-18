@@ -473,6 +473,8 @@ class Experiment:
                 self.loss_history.record_aux(
                     getattr(self.coproc, "recent_apparent_task_loss", None),
                     getattr(self.coproc, "recent_stim_cost_samples", None),
+                    stim_raw=getattr(self.coproc, "recent_stim_raw", None),
+                    ua_per_unit=getattr(self.cfg, "stim_ua_per_unit", None),
                 )
 
             # Pass the loss back to the user, who can decide what to

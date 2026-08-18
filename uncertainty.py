@@ -74,7 +74,7 @@ def uncertainty(ensemble: EnsembleLike, x_t: torch.Tensor,
 
     mu, var = ensemble.forward(x_t)                     # (M, batch, out_dim)
     # MAX_FROBENIUS (diagonal-Gaussian ||Sigma_i||_F), DISAGREEMENT (spread of
-    # member means), and SINGLE_VAR (one member's variance -- the pure-aleatoric
+    # member means), and SINGLE_VAR (one member's variance: the pure-aleatoric
     # baseline) are all pure functions of (mu, var); share that logic so a caller
     # holding (mu, var) can reuse it without a second forward.
     return uncertainty_from(mu, var, estimator)

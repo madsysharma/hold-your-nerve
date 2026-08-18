@@ -17,6 +17,23 @@ def calc_task_loss(actuals, targets):
     return _G_MSELOSS(actuals, targets[:, 1:, :])
 
 
+def cvar(costs, alpha=0.95):
+    """Conditional Value at Risk of a cost sample: the mean of the worst
+    (1 - alpha) tail. Used for the stimulation-cost safety metric -- it captures
+    the tail of large stimulations, not just the average. Returns a float, or
+    None if there is nothing to score."""
+    if costs is None:
+        return None
+    c = costs.detach().flatten().float()
+    if c.numel() == 0:
+        return None
+    thresh = torch.quantile(c, alpha)
+    tail = c[c >= thresh]
+    if tail.numel() == 0:
+        return float(c.max().item())
+    return float(tail.mean().item())
+
+
 @attr.s(auto_attribs=True)
 class UserData:
     # Just a string which shows up in the logs, for user convenience
@@ -67,6 +84,15 @@ class LossHistory:
         self._adv_stats_report_cadence = adv_stats_report_cadence
 
         self._max_pct_recov = 0
+        # Dual-recovery + safety aux (apparent recovery eta_hat via the EN,
+        # the gap Delta = eta_hat - eta, and the stim-cost CVaR).
+        self._max_apparent_pct_recov = 0
+        self._last_apparent_pct_recov = None
+        self._last_recovery_gap = None
+        self._last_stim_cvar = None
+        self._apparent_at_max_true = None
+        self._gap_at_max_true = None
+        self._cvar_at_max_true = None
 
     def calc_pct_recov(self, task_loss):
         dh = task_loss.item() - self.healthy_loss
@@ -246,6 +272,57 @@ class LossHistory:
     @property
     def records(self):
         return copy.copy(self._recs)
+
+    def record_aux(self, apparent_task_loss=None, stim_cost_samples=None, alpha=0.95):
+        """Record the apparent recovery eta_hat (scored through the EN) and the
+        stim-cost CVaR alongside the true recovery eta already logged by report().
+        Call this AFTER report()/report_by_result() for the same epoch, so the
+        latest record's true pct_recov is available for the gap. Additive: it
+        does not touch the existing recovery logging.
+        """
+        true_pct = self._recs[-1].pct_recov if self._recs else None
+        if apparent_task_loss is not None:
+            loss = apparent_task_loss
+            if hasattr(loss, "item"):
+                loss = loss.item()
+            dl = self.lesioned_loss - self.healthy_loss
+            ap = 1.0 - ((loss - self.healthy_loss) / dl)
+            self._last_apparent_pct_recov = ap
+            if ap > self._max_apparent_pct_recov:
+                self._max_apparent_pct_recov = ap
+            if true_pct is not None:
+                self._last_recovery_gap = ap - true_pct
+        if stim_cost_samples is not None:
+            self._last_stim_cvar = cvar(stim_cost_samples, alpha)
+        # Snapshot the aux values at the epoch of peak TRUE recovery, which is the
+        # operating point the harnesses report.
+        if true_pct is not None and true_pct >= self._max_pct_recov - 1e-12:
+            self._apparent_at_max_true = self._last_apparent_pct_recov
+            self._gap_at_max_true = self._last_recovery_gap
+            self._cvar_at_max_true = self._last_stim_cvar
+
+    @property
+    def max_apparent_pct_recov(self):
+        return self._max_apparent_pct_recov
+
+    @property
+    def apparent_at_max_recov(self):
+        """Apparent recovery eta_hat at the epoch of peak true recovery."""
+        return self._apparent_at_max_true
+
+    @property
+    def gap_at_max_recov(self):
+        """Delta = eta_hat - eta at the epoch of peak true recovery."""
+        return self._gap_at_max_true
+
+    @property
+    def cvar_at_max_recov(self):
+        """Stim-cost CVaR at the epoch of peak true recovery."""
+        return self._cvar_at_max_true
+
+    @property
+    def last_stim_cvar(self):
+        return self._last_stim_cvar
 
     @property
     def max_pct_recov(self):

@@ -466,6 +466,15 @@ class Experiment:
                     update_task_loss=update_task_loss,
                 )
 
+            # Dual-recovery + safety aux: record apparent recovery (eta_hat via
+            # the EN) and the stim-cost CVaR alongside true recovery. Only during
+            # CPN epochs, where the EN predictions and stims exist.
+            if getattr(self.coproc, "is_cpn_epoch", False):
+                self.loss_history.record_aux(
+                    getattr(self.coproc, "recent_apparent_task_loss", None),
+                    getattr(self.coproc, "recent_stim_cost_samples", None),
+                )
+
             # Pass the loss back to the user, who can decide what to
             # do now.
             result = self._coproc_finish(self.loss_history)

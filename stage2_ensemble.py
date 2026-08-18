@@ -133,7 +133,14 @@ def train_member(idx, seed, label, err_kwargs, args, device, coadapt, floor):
 
     lh = exp.run()
     recov = lh.max_pct_recov
-    print(f"  member {idx + 1} max recovery = {recov * 100:.1f}%")
+    eta_hat = lh.apparent_at_max_recov
+    delta = lh.gap_at_max_recov
+    cvar_val = lh.cvar_at_max_recov
+    eta_hat_s = f"{eta_hat * 100:.1f}%" if eta_hat is not None else "n/a"
+    delta_s = f"{delta * 100:+.1f}pp" if delta is not None else "n/a"
+    cvar_s = f"{cvar_val:.4e}" if cvar_val is not None else "n/a"
+    print(f"  member {idx + 1}: true eta={recov * 100:.1f}%  apparent eta_hat={eta_hat_s}  "
+          f"gap Delta={delta_s}  stim-CVaR={cvar_s}")
     return recov, coproc.en
 
 

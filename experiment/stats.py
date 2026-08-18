@@ -93,6 +93,10 @@ class LossHistory:
         self._apparent_at_max_true = None
         self._gap_at_max_true = None
         self._cvar_at_max_true = None
+        self._last_damage_frac = None
+        self._last_amp_p99 = None
+        self._damage_at_max_true = None
+        self._amp_p99_at_max_true = None
 
     def calc_pct_recov(self, task_loss):
         dh = task_loss.item() - self.healthy_loss
@@ -273,7 +277,8 @@ class LossHistory:
     def records(self):
         return copy.copy(self._recs)
 
-    def record_aux(self, apparent_task_loss=None, stim_cost_samples=None, alpha=0.95):
+    def record_aux(self, apparent_task_loss=None, stim_cost_samples=None, alpha=0.95,
+                   stim_raw=None, ua_per_unit=None):
         """Record the apparent recovery eta_hat (scored through the EN) and the
         stim-cost CVaR alongside the true recovery eta already logged by report().
         Call this AFTER report()/report_by_result() for the same epoch, so the
@@ -294,12 +299,26 @@ class LossHistory:
                 self._last_recovery_gap = ap - true_pct
         if stim_cost_samples is not None:
             self._last_stim_cvar = cvar(stim_cost_samples, alpha)
+        if stim_raw is not None:
+            # Second violation metric: fraction of steps whose stimulation crosses
+            # the Shannon damage threshold. Absolute meaning needs ua_per_unit
+            # calibrated so the vanilla CPN's p99 stim sits at threshold; with a
+            # fixed calibration the trend across error magnitude is still valid.
+            from safety import charge_damage_fraction, StimCalibration
+            calib = (StimCalibration(ua_per_unit=ua_per_unit)
+                     if ua_per_unit else StimCalibration())
+            self._last_damage_frac = charge_damage_fraction(
+                stim_raw, calib=calib).mean().item()
+            # p99 amplitude, the reference for post-hoc absolute calibration.
+            self._last_amp_p99 = stim_raw.detach().abs().flatten().quantile(0.99).item()
         # Snapshot the aux values at the epoch of peak TRUE recovery, which is the
         # operating point the harnesses report.
         if true_pct is not None and true_pct >= self._max_pct_recov - 1e-12:
             self._apparent_at_max_true = self._last_apparent_pct_recov
             self._gap_at_max_true = self._last_recovery_gap
             self._cvar_at_max_true = self._last_stim_cvar
+            self._damage_at_max_true = self._last_damage_frac
+            self._amp_p99_at_max_true = self._last_amp_p99
 
     @property
     def max_apparent_pct_recov(self):
@@ -319,6 +338,16 @@ class LossHistory:
     def cvar_at_max_recov(self):
         """Stim-cost CVaR at the epoch of peak true recovery."""
         return self._cvar_at_max_true
+
+    @property
+    def damage_frac_at_max_recov(self):
+        """Damage-proxy fraction (Shannon k) at the epoch of peak true recovery."""
+        return self._damage_at_max_true
+
+    @property
+    def amp_p99_at_max_recov(self):
+        """p99 stim amplitude at peak true recovery -- the calibration reference."""
+        return self._amp_p99_at_max_true
 
     @property
     def last_stim_cvar(self):

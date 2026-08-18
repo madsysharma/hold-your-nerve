@@ -39,6 +39,7 @@ class CPNEpochCPN:
         self.stims = []
         self.recent_apparent_task_loss = None   # eta_hat's task loss (EN preds vs targets)
         self.recent_stim_cost_samples = None    # per-step per-batch stim costs, for CVaR
+        self.recent_stim_raw = None             # (batch, T, stim_dim) raw stims, for the damage-proxy fraction
 
         if cfg.recover_after_lesion:
             self.set_opt_lr = self.lr_sched_aggressive_refine3
@@ -63,6 +64,7 @@ class CPNEpochCPN:
         self.stims = []
         self.recent_apparent_task_loss = None   # eta_hat's task loss (EN preds vs targets)
         self.recent_stim_cost_samples = None    # per-step per-batch stim costs, for CVaR
+        self.recent_stim_raw = None             # (batch, T, stim_dim) raw stims, for the damage-proxy fraction
         self.reset_models()
 
     def reset_models(self):
@@ -125,8 +127,12 @@ class CPNEpochCPN:
             per_step = torch.stack(
                 [(st.detach() ** 2).sum(dim=-1) for st in self.stims], dim=0)  # (T, batch)
             self.recent_stim_cost_samples = per_step.flatten()
+            # (batch, T, stim_dim): raw amplitudes for charge_damage_fraction.
+            self.recent_stim_raw = torch.stack(
+                [st.detach() for st in self.stims], dim=1)
         else:
             self.recent_stim_cost_samples = None
+            self.recent_stim_raw = None
 
         if self.reg_stim_weight is not None:
             # Regularizing applied stimulation

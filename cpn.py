@@ -200,6 +200,10 @@ class CPN_EN_CoProc(experiment.CoProc):
     def recent_stim_cost_samples(self):
         return getattr(self.cpn_epoch, "recent_stim_cost_samples", None)
 
+    @property
+    def recent_stim_raw(self):
+        return getattr(self.cpn_epoch, "recent_stim_raw", None)
+
     def feedback(self, actuals, targets, trial_end, loss_history):
         if self.epoch_type in (EpochType.EN, EpochType.VAL_EN):
             self.en_epoch.feedback(

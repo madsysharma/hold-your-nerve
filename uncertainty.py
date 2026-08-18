@@ -154,3 +154,58 @@ def calibration_curve(ensemble: EnsembleLike, dataloader, error_axis: str,
         means.append(e_all[sel].mean())
 
     return torch.stack(centers), torch.stack(means)
+
+
+def plot_reliability_diagrams(predicted_uncertainties: dict, actual_errors: dict,
+                              output_path: str = "fig_reliability_diagrams.png"):
+    """Render reliability diagrams of predicted uncertainty vs actual EN error,
+    one panel per error axis. This is the plotting companion to calibration_curve
+    (which produces the binned points); pass it per-axis arrays of predicted
+    uncertainty and the matching true residual errors.
+
+    predicted_uncertainties: {axis_name: array of predicted uncertainties}
+    actual_errors:           {axis_name: array of true residual errors}
+    output_path:             where to save the figure.
+
+    matplotlib and numpy are imported lazily so importing this module for the
+    estimators alone does not require them.
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    axes_labels = list(predicted_uncertainties.keys())
+    fig, axes = plt.subplots(1, len(axes_labels),
+                             figsize=(5 * len(axes_labels), 4), sharey=True)
+    if len(axes_labels) == 1:
+        axes = [axes]
+
+    for ax, axis_name in zip(axes, axes_labels):
+        unc = np.array(predicted_uncertainties[axis_name])
+        err = np.array(actual_errors[axis_name])
+
+        num_bins = 8
+        bins = np.linspace(np.min(unc), np.max(unc), num_bins + 1)
+        bin_indices = np.digitize(unc, bins)
+
+        bin_unc_means, bin_err_means = [], []
+        for i in range(1, len(bins)):
+            mask = bin_indices == i
+            if np.any(mask):
+                bin_unc_means.append(np.mean(unc[mask]))
+                bin_err_means.append(np.mean(err[mask]))
+
+        ax.plot(bin_unc_means, bin_err_means, "o-", linewidth=2,
+                color="crimson", label="Observed error")
+        lo = min(np.min(unc), np.min(err))
+        hi = max(np.max(unc), np.max(err))
+        ax.plot([lo, hi], [lo, hi], "--", color="gray", label="Ideal calibration")
+        ax.set_title(f"Error axis: {axis_name.capitalize()}")
+        ax.set_xlabel("Predicted uncertainty")
+        ax.set_ylabel("Actual EN error")
+        ax.grid(True, linestyle="--", alpha=0.6)
+        ax.legend()
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300)
+    plt.close()
+    print(f"Saved calibration reliability diagrams to {output_path}")

@@ -150,6 +150,7 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
     max_recov = loss_history.max_pct_recov
 
     # Dual-recovery + safety readout at the peak-true-recovery operating point.
+    eta_true = loss_history.true_at_max_recov
     eta_hat = loss_history.apparent_at_max_recov
     delta = loss_history.gap_at_max_recov
     cvar_val = loss_history.cvar_at_max_recov
@@ -160,7 +161,8 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
     dmg_s = f"{dmg * 100:.1f}%" if dmg is not None else "n/a"
     print("\n" + "-" * 72)
     print(f"  RESULT for {lesion_key} [{label}]:")
-    print(f"    true recovery   eta      = {max_recov * 100:.1f}% (peak)")
+    eta_true_s = f"{eta_true * 100:.1f}%" if eta_true is not None else f"{max_recov * 100:.1f}%"
+    print(f"    true recovery   eta      = {eta_true_s} (at CPN operating point)")
     print(f"    apparent recov  eta_hat  = {eta_hat_s}   (what the CPN sees via the EN)")
     print(f"    exploitation gap Delta   = {delta_s}   (eta_hat - eta)")
     print(f"    stim-cost CVaR (0.95)    = {cvar_s}")

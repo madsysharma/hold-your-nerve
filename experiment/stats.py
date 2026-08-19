@@ -97,6 +97,11 @@ class LossHistory:
         self._last_amp_p99 = None
         self._damage_at_max_true = None
         self._amp_p99_at_max_true = None
+        # Best TRUE recovery seen among CPN epochs, tracked independently of
+        # _max_pct_recov (which pins at its initial 0 and so misses the <=0
+        # injected-error regime). None until the first CPN epoch.
+        self._aux_best_true = None
+        self._true_at_max_true = None
 
     def calc_pct_recov(self, task_loss):
         dh = task_loss.item() - self.healthy_loss
@@ -311,9 +316,15 @@ class LossHistory:
                 stim_raw, calib=calib).mean().item()
             # p99 amplitude, the reference for post-hoc absolute calibration.
             self._last_amp_p99 = stim_raw.detach().abs().flatten().quantile(0.99).item()
-        # Snapshot the aux values at the epoch of peak TRUE recovery, which is the
-        # operating point the harnesses report.
-        if true_pct is not None and true_pct >= self._max_pct_recov - 1e-12:
+        # Snapshot the aux values at the best true recovery seen among CPN
+        # epochs. record_aux only runs on CPN epochs, and _aux_best_true starts
+        # as None so the first CPN epoch always snapshots: then it follows the
+        # least-bad epoch even when recovery is <= 0 (the injected-error regime
+        # where the loss-history _max_pct_recov stays pinned at its initial 0).
+        if true_pct is not None and (self._aux_best_true is None
+                                     or true_pct >= self._aux_best_true):
+            self._aux_best_true = true_pct
+            self._true_at_max_true = true_pct
             self._apparent_at_max_true = self._last_apparent_pct_recov
             self._gap_at_max_true = self._last_recovery_gap
             self._cvar_at_max_true = self._last_stim_cvar
@@ -323,6 +334,13 @@ class LossHistory:
     @property
     def max_apparent_pct_recov(self):
         return self._max_apparent_pct_recov
+
+    @property
+    def true_at_max_recov(self):
+        """True recovery eta at the CPN epoch used for the aux snapshot -- the
+        operating point eta_hat/Delta/CVaR/damage are all reported at. May be
+        <= 0 under injected error; None until a CPN epoch runs."""
+        return self._true_at_max_true
 
     @property
     def apparent_at_max_recov(self):

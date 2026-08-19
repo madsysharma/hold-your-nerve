@@ -318,7 +318,7 @@ class LossHistory:
             self._last_amp_p99 = stim_raw.detach().abs().flatten().quantile(0.99).item()
         # Snapshot the aux values at the best true recovery seen among CPN
         # epochs. record_aux only runs on CPN epochs, and _aux_best_true starts
-        # as None so the first CPN epoch always snapshots -- then it follows the
+        # as None so the first CPN epoch always snapshots: then it follows the
         # least-bad epoch even when recovery is <= 0 (the injected-error regime
         # where the loss-history _max_pct_recov stays pinned at its initial 0).
         if true_pct is not None and (self._aux_best_true is None

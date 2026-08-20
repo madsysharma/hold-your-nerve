@@ -13,6 +13,13 @@ ladder rather than borrowing one number across all three. "clean" (no error) is 
 own `none` axis, run once per (lesion, baseline, seed) and shared as the anchor
 point for every axis's trend, instead of being repeated inside each axis.
 
+Honesty about what can run today:
+  - B1 (vanilla CPN) is fully runnable and is executed for real.
+  - B0 (oracle) and B2-B6 depend on machinery not yet in the repo (oracle mode,
+    domain randomization, the trust-aware / conformal integration of Task 4.3).
+    Those configs are marked status="skipped" with a reason -- never invented
+    numbers. Add them to RUNNABLE_BASELINES with a mapping to run them for real.
+
 Each runnable config maps to a real stage1_error_injection.py invocation; the child
 writes its metrics to a per-run JSON via --metrics-json, which this script reads
 back. Config enumeration, the parallel pool, and per-run checkpoint/resume are
@@ -149,6 +156,8 @@ def build_command(config, opts, metrics_path, log_dir):
            "--metrics-json", metrics_path]
     if opts.en_ready_floor is not None:
         cmd += ["--en-ready-floor", str(opts.en_ready_floor)]
+    if getattr(opts, "warm_start_en", None):
+        cmd += ["--warm-start-en", opts.warm_start_en]
     return cmd
 
 
@@ -219,6 +228,12 @@ def main():
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--configs", default="configs.json")
     p.add_argument("--results-dir", default="results")
+    p.add_argument("--warm-start-en", default=None,
+                   help="Path to a converged en.model to warm-start every run from. "
+                        "NOTE: a warm-start EN is specific to its lesion+architecture, "
+                        "so a single path only fits runs with the same lesion/arch; "
+                        "run one lesion at a time, or leave unset and pass --warm-start-en "
+                        "per stage1 invocation.")
     # Real-run parameters (passed through to stage1).
     p.add_argument("--max-epochs", type=int, required=True,
                    help="Per-run CPN-epoch cap. Does NOT bound EN pre-training, so a "

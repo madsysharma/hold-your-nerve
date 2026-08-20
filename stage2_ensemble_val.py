@@ -26,6 +26,7 @@ import torch.nn as nn
 from torch.optim import AdamW
 
 import cpn
+from cpn import load_en_state_dict
 import cpn_epoch_cpn
 import cpn_epoch_en
 import experiment.experiment
@@ -50,7 +51,8 @@ class WiredEnsembleEN(nn.Module):
     Holds M independent EN instances, each initialized with a distinct seed.
     """
     def __init__(self, in_dim, out_dim, M=5, num_neurons=None, activation=torch.nn.Tanh,
-                 cuda=None, cell_type="lstm", base_seed=0, checkpoint=False):
+                 cuda=None, cell_type="lstm", base_seed=0, checkpoint=False,
+                 warm_start_path=None, warm_start_jitter=0.01):
         super().__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
@@ -61,6 +63,8 @@ class WiredEnsembleEN(nn.Module):
         self.cell_type = cell_type
         self.base_seed = base_seed
         self.checkpoint = checkpoint
+        self.warm_start_path = warm_start_path
+        self.warm_start_jitter = warm_start_jitter
 
         self.members = nn.ModuleList()
         for i in range(M):
@@ -74,6 +78,18 @@ class WiredEnsembleEN(nn.Module):
                 cell_type=cell_type,
             )
             en_i.use_checkpoint = checkpoint   # gradient-checkpoint each member's rollout
+            if warm_start_path:
+                # Warm-start every member from the same converged EN, then jitter
+                # members 1..M-1 so the ensemble keeps disagreement (member 0 stays
+                # the pristine converged EN). They diverge further through training.
+                load_en_state_dict(en_i, warm_start_path, cuda)
+                if i > 0 and warm_start_jitter > 0:
+                    gen = torch.Generator().manual_seed(base_seed + i)
+                    with torch.no_grad():
+                        for prm in en_i.parameters():
+                            noise = torch.randn(prm.shape, generator=gen) * (
+                                warm_start_jitter * prm.detach().std())
+                            prm.add_(noise.to(prm.device))
             self.members.append(en_i)
 
     def forward(self, x_t: torch.Tensor):
@@ -150,6 +166,8 @@ class WiredEnsembleAdapter(nn.Module):
             cell_type=self.cell_type,
             base_seed=self.wired_ensemble.base_seed + 1000,
             checkpoint=self.wired_ensemble.checkpoint,
+            warm_start_path=self.wired_ensemble.warm_start_path,
+            warm_start_jitter=self.wired_ensemble.warm_start_jitter,
         )
         new_adapter = WiredEnsembleAdapter(new_ensemble)
         new_opt = AdamW(new_adapter.parameters(), lr=4e-3, weight_decay=0.04)
@@ -159,10 +177,14 @@ class WiredEnsembleAdapter(nn.Module):
 class WiredCPN_EN_CoProc(cpn.CPN_EN_CoProc):
     """CoProc harness using a WiredEnsembleAdapter as the EN stand-in."""
     def __init__(self, cfg, num_members=5, base_seed=0, log_dir=None, recycle_thresh=None,
-                 checkpoint=False):
+                 checkpoint=False, warm_start_path=None):
         super().__init__(cfg, log_dir=log_dir, recycle_thresh=recycle_thresh)
         in_dim, stim_dim, out_dim, cuda = cfg.unpack()
         en_in_dim = cfg.observer_instance.out_dim + stim_dim + 1
+        # Warm-start the ensemble members too (the single EN built by super().__init__
+        # is about to be replaced, so its warm-start is discarded -- harmless).
+        if warm_start_path is None:
+            warm_start_path = getattr(cfg, "warm_start_en_path", None)
 
         wired_ensemble = WiredEnsembleEN(
             en_in_dim,
@@ -174,6 +196,7 @@ class WiredCPN_EN_CoProc(cpn.CPN_EN_CoProc):
             cell_type=cfg.en_cell_type,
             base_seed=base_seed,
             checkpoint=checkpoint,
+            warm_start_path=warm_start_path,
         )
         self.en = WiredEnsembleAdapter(wired_ensemble)
         self.opt_en = AdamW(self.en.parameters(), lr=1e-3, weight_decay=0.04)

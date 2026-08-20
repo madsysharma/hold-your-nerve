@@ -62,3 +62,9 @@ logs/
 
 # Misc
 Thumbs.db
+
+# Experiment runs
+results/*
+config.json
+experiment/config.json
+experiment/results/*

@@ -59,6 +59,24 @@ BASELINE_FLAGS = {
 }
 RUNNABLE_BASELINES = set(BASELINE_FLAGS)
 
+# Baselines whose trust-aware weight lambda is meaningful and therefore swept when
+# --ta-lambdas has >1 value. B1/B2 use no lambda; B3 uses beta (safety) not lambda.
+LAMBDA_SWEEP_BASELINES = {"B4", "B5", "B6"}
+
+
+def _strip_flag(flags, name):
+    """Return flags with `name` and its following value removed."""
+    out, skip = [], False
+    for f in flags:
+        if skip:
+            skip = False
+            continue
+        if f == name:
+            skip = True
+            continue
+        out.append(f)
+    return out
+
 LESION_MAP = {"AIP": "aip", "M1": "m1", "F5_M1": "f5m1"}
 
 # Device assigned to THIS worker process. In parallel runs the pool initializer
@@ -117,16 +135,24 @@ def flags_for(axis, severity):
     return None
 
 
-def generate_configs(output_path, lesions, axes, baselines, seeds):
+def generate_configs(output_path, lesions, axes, baselines, seeds, ta_lambdas=(0.3,)):
     conditions = [(axis, sev) for axis in axes for sev, _ in AXIS_LEVELS.get(axis, [])]
     combos = itertools.product(lesions, conditions, baselines, seeds)
     configs = []
-    for idx, (lesion, (axis, sev), base, seed) in enumerate(combos):
-        configs.append({
-            "run_id": f"run_{idx:04d}",
-            "lesion": lesion, "error_axis": axis, "severity": sev,
-            "baseline": base, "seed": seed, "status": "pending",
-        })
+    idx = 0
+    for (lesion, (axis, sev), base, seed) in combos:
+        # lambda-using baselines get one config per swept lambda; the rest get one.
+        lambdas = list(ta_lambdas) if base in LAMBDA_SWEEP_BASELINES else [None]
+        for lam in lambdas:
+            cfg = {
+                "run_id": f"run_{idx:04d}",
+                "lesion": lesion, "error_axis": axis, "severity": sev,
+                "baseline": base, "seed": seed, "status": "pending",
+            }
+            if lam is not None:
+                cfg["ta_lambda"] = lam   # recorded so B4@0.1 vs B4@1.0 are distinguishable
+            configs.append(cfg)
+            idx += 1
     with open(output_path, "w") as f:
         json.dump(configs, f, indent=2)
     print(f"Generated {len(configs)} configurations in '{output_path}'.")
@@ -143,8 +169,11 @@ def build_command(config, opts, metrics_path, log_dir):
     ef = flags_for(config["error_axis"], config["severity"])
     if ef is None:
         return None
+    bflags = list(BASELINE_FLAGS.get(config["baseline"], []))
+    if "ta_lambda" in config:
+        bflags = _strip_flag(bflags, "--ta-lambda") + ["--ta-lambda", str(config["ta_lambda"])]
     cmd = [sys.executable, STAGE1, "--lesion", lesion, *ef,
-           *BASELINE_FLAGS.get(config["baseline"], []),
+           *bflags,
            "--device", _current_device(opts),
            "--seed", str(config["seed"]),
            "--max-epochs", str(opts.max_epochs),
@@ -258,6 +287,11 @@ def main():
                         "sigma_p_0.2). Default: all levels of the selected axes.")
     p.add_argument("--baselines", nargs="+", default=["B0", "B1", "B2", "B3", "B4", "B5", "B6"])
     p.add_argument("--seeds", nargs="+", type=int, default=[42, 101, 2024, 888, 999])
+    p.add_argument("--ta-lambdas", nargs="+", type=float, default=[0.3],
+                   help="Lambda values to sweep for the trust-aware baselines (B4/B5/B6). "
+                        "Each such baseline runs once per value; results record ta_lambda. "
+                        "Default [0.3] reproduces the single-lambda behaviour. "
+                        "Delete configs.json before changing this (the grid is regenerated).")
     p.add_argument("--limit", type=int, default=None, help="Run at most N configs (after filtering).")
     p.add_argument("--dry-run", action="store_true", help="Print the commands without running.")
     opts = p.parse_args()
@@ -268,7 +302,8 @@ def main():
             all_configs = json.load(f)
     else:
         all_configs = generate_configs(opts.configs, opts.lesions, opts.axes,
-                                        opts.baselines, opts.seeds)
+                                        opts.baselines, opts.seeds,
+                                        ta_lambdas=opts.ta_lambdas)
 
     # apply subset filters
     cfgs = [c for c in all_configs

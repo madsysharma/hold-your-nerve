@@ -48,7 +48,7 @@ warnings.filterwarnings("ignore")
 
 
 def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
-                            warm_start_en=None,
+                            warm_start_en=None, pretrain_en_out=None,
                             sigma_p=0.0, en_num_neurons=None, en_cell_type=None,
                             drift_delta=0.0, drift_k=8, drift_seed=42, drift_ramp=-1,
                             ta_lambda=0.0, ta_beta=0.0, ta_caution="soft",
@@ -73,6 +73,8 @@ def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
     )
     if warm_start_en is not None:
         common["warm_start_en_path"] = warm_start_en
+    if pretrain_en_out is not None:
+        common["pretrain_en_out"] = pretrain_en_out
     if coadapt is not None:
         common["coadapt"] = coadapt
     if en_num_neurons is not None:
@@ -111,7 +113,7 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
             en_num_neurons, en_cell_type, drift_delta, drift_k, drift_seed,
             drift_ramp=-1, seed=0, ta_lambda=0.0, ta_beta=0.0, ta_caution="soft",
             ta_halt_threshold=1.0, ta_halt_penalty=10.0, num_members=1, dr_sigma_max=0.0,
-            checkpoint_en=False):
+            checkpoint_en=False, warm_start_en=None, pretrain_en_out=None):
     torch.manual_seed(seed)   # reproducible init per (config, seed)
     desc, recover_supported = LESIONS[lesion_key]
     if recover and not recover_supported:
@@ -143,7 +145,7 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
         drift_ramp=drift_ramp, ta_lambda=ta_lambda, ta_beta=ta_beta,
         ta_caution=ta_caution, ta_halt_threshold=ta_halt_threshold,
         ta_halt_penalty=ta_halt_penalty,
-        warm_start_en=warm_start_en,
+        warm_start_en=warm_start_en, pretrain_en_out=pretrain_en_out,
     )
 
     if dr_sigma_max and dr_sigma_max > 0.0:
@@ -230,6 +232,11 @@ def main():
                    help="Distributional: drift subspace dimensionality. Default 8.")
     p.add_argument("--drift-seed", type=int, default=42,
                    help="Distributional: drift direction seed. Default 42.")
+    p.add_argument("--pretrain-en-out", default=None,
+                   help="EN-only mode: train the EN to convergence, save it to this path, "
+                        "then stop before any CPN training. Run once per lesion with "
+                        "--error none and a SINGLE EN (no --num-members / --dr-sigma-max) "
+                        "to mint clean warm-start ENs.")
     p.add_argument("--warm-start-en", default=None,
                    help="Path to a converged en.model (or a run-log dir containing one) "
                         "to load INSTEAD of training the EN from scratch -- skips most "
@@ -328,6 +335,7 @@ def main():
             ta_halt_threshold=args.ta_halt_threshold, ta_halt_penalty=args.ta_halt_penalty,
             num_members=args.num_members, dr_sigma_max=args.dr_sigma_max,
             checkpoint_en=args.checkpoint_en, warm_start_en=args.warm_start_en,
+            pretrain_en_out=args.pretrain_en_out,
         )
 
     if not args.baseline_only:

@@ -279,7 +279,19 @@ class CPNEpochCPN:
             rtl = self.recent_train_loss
         self.recent_task_losses.append(rtl)
 
-        if (
+        _pretrain_out = getattr(self.cfg, "pretrain_en_out", None)
+        if _pretrain_out:
+            # EN-only mode: reaching the first CPN epoch means the EN is ready/
+            # converged (and CPN epochs leave the frozen EN untouched). Save it as
+            # a warm-start checkpoint and stop -- no CPN training performed.
+            import os as _os
+            _d = _os.path.dirname(_os.path.abspath(_pretrain_out))
+            _os.makedirs(_d, exist_ok=True)
+            torch.save(self.en.state_dict(), _pretrain_out)
+            print(f"[pretrain-en] saved converged EN to {_pretrain_out}", flush=True)
+            we_are_done = True
+            en_is_ready = False
+        elif (
             loss_history.max_pct_recov > STOP_PCT
             and not self.cfg.dont_train
             and loss_history.lesioned_loss > loss_history.healthy_loss

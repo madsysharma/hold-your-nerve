@@ -93,18 +93,15 @@ AXIS_LEVELS = {
     ],
     "parametric": [
         (f"sigma_p_{m}", ["--error", "parametric", "--sigma-p", str(m)])
-        for m in (0.05, 0.1, 0.2, 0.4, 0.5, 1.0)
+        for m in (0.05, 0.1, 0.2, 0.4)
     ],
     "distributional": [
         (f"delta_{m}", ["--error", "distributional", "--drift-delta", str(m)])
-        for m in (0.05, 0.1, 0.2, 0.4, 0.5, 1.0)
+        for m in (0.05, 0.1, 0.2, 0.4)
     ],
     "structural": [
         ("cap_20",   ["--error", "structural", "--en-num-neurons", "20"]),
         ("cap_40",   ["--error", "structural", "--en-num-neurons", "40"]),
-        ("cap_60",   ["--error", "structural", "--en-num-neurons", "60"]),
-        ("cap_100",   ["--error", "structural", "--en-num-neurons", "100"]),
-        ("cap_120",   ["--error", "structural", "--en-num-neurons", "120"]),
         ("cap_160",  ["--error", "structural", "--en-num-neurons", "160"]),
         ("topo_gru", ["--error", "structural", "--en-cell-type", "gru"]),
         ("topo_rnn", ["--error", "structural", "--en-cell-type", "rnn"]),

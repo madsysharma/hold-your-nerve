@@ -1,4 +1,5 @@
 import math
+from torch.utils.checkpoint import checkpoint
 
 import torch
 from torch import nn
@@ -226,10 +227,24 @@ class LSTMModel(nn.Module):
         self.ct = None
         self._opt.zero_grad()
 
-    def forward(self, x_t):
-        # Old: Assumes x is of shape (batch, sequence, feature)
-        # New: Assumes x_t is of shape (batch, feature)
+    def _step(self, x_t, ht, ct):
+        """Pure recurrent step: no self.* mutation, so it is safe to checkpoint
+        (checkpoint saves ht/ct and recomputes from THEM in backward)."""
+        HS = self.num_neurons
+        gates = x_t @ self.W + ht @ self.U + self.bias
+        i_t, f_t, g_t, o_t = (
+            torch.sigmoid(gates[:, :HS]),  # input
+            torch.sigmoid(gates[:, HS : HS * 2]),  # forget
+            torch.tanh(gates[:, HS * 2 : HS * 3]),
+            torch.sigmoid(gates[:, HS * 3 :]),  # output
+        )
+        ct = f_t * ct + i_t * g_t
+        ht = o_t * torch.tanh(ct)
+        out = self.fc(self.activation_func(ht))
+        return out, ht, ct
 
+    def forward(self, x_t):
+        # x_t is of shape (batch, feature)
         batch_size, in_dim = x_t.shape
         assert in_dim == self.in_dim, str((in_dim, self.in_dim))
 
@@ -241,22 +256,15 @@ class LSTMModel(nn.Module):
                 self.ht = self.ht.cuda(self._cuda)
                 self.ct = self.ct.cuda(self._cuda)
 
-        HS = self.num_neurons
-        # batch the computations into a single matrix multiplication
-        gates = x_t @ self.W + self.ht @ self.U + self.bias
-        i_t, f_t, g_t, o_t = (
-            torch.sigmoid(gates[:, :HS]),  # input
-            torch.sigmoid(gates[:, HS : HS * 2]),  # forget
-            torch.tanh(gates[:, HS * 2 : HS * 3]),
-            torch.sigmoid(gates[:, HS * 3 :]),  # output
-        )
-
-        self.ct = f_t * self.ct + i_t * g_t 
-        self.ht = o_t * torch.tanh(self.ct) #see notes
-
-        activation = self.activation_func(self.ht)
-        out = self.fc(activation)
-
+        # Gradient checkpointing (opt-in via .use_checkpoint) recomputes the step's
+        # internal gate activations in backward instead of storing them for every
+        # timestep -- the big memory win under an M-member ensemble rollout. State is
+        # threaded explicitly so numerics/gradients are identical to the plain path.
+        if getattr(self, "use_checkpoint", False) and torch.is_grad_enabled():
+            out, ht, ct = checkpoint(self._step, x_t, self.ht, self.ct, use_reentrant=False)
+        else:
+            out, ht, ct = self._step(x_t, self.ht, self.ct)
+        self.ht, self.ct = ht, ct
         return out
 
 
@@ -327,34 +335,38 @@ class GRUModel(nn.Module):
         self.ht = None
         self._opt.zero_grad()
 
-    def forward(self, x_t):
-        #x_t is size [batch_size, feature]
-        batch_size, in_dim = x_t.shape
-        assert in_dim == self.in_dim, str((in_dim, self.in_dim))  #raise assertion error with information in case of mismatch
-
-        if self.ht is None:
-            self.ht = torch.zeros(batch_size, self.num_neurons) #starting hidden state
-
-            if self._cuda is not None:
-                self.ht = self.ht.cuda(self._cuda)
-
-        HS = self.num_neurons #HS = hidden size
-        gates_x = x_t @ self.W #@ for standard matrix multiplication
-        gates_h = self.ht @ self.U
-
-        r_t = torch.sigmoid(gates_x[:, :HS] + gates_h[:, :HS] + self.bias[:HS]) #equivalent to r_t = sigmoid(W_r*[h_{t-1},x_t] + b_r)
+    def _step(self, x_t, ht):
+        """Pure GRU step (no self.* mutation) -- safe to checkpoint."""
+        HS = self.num_neurons
+        gates_x = x_t @ self.W
+        gates_h = ht @ self.U
+        r_t = torch.sigmoid(gates_x[:, :HS] + gates_h[:, :HS] + self.bias[:HS])
         z_t = torch.sigmoid(
             gates_x[:, HS : HS * 2] + gates_h[:, HS : HS * 2] + self.bias[HS : HS * 2]
         )
         n_t = torch.tanh(
             gates_x[:, HS * 2 :] + self.bias[HS * 2 :] + r_t * gates_h[:, HS * 2 :]
-        ) #similar equivalencies to standard GRU expressions apply
+        )
+        ht = (1 - z_t) * n_t + z_t * ht
+        out = self.fc(self.activation_func(ht))
+        return out, ht
 
-        self.ht = (1 - z_t) * n_t + z_t * self.ht
+    def forward(self, x_t):
+        #x_t is size [batch_size, feature]
+        batch_size, in_dim = x_t.shape
+        assert in_dim == self.in_dim, str((in_dim, self.in_dim))
 
-        activation = self.activation_func(self.ht) 
-        out = self.fc(activation)
+        if self.ht is None:
+            self.ht = torch.zeros(batch_size, self.num_neurons)
 
+            if self._cuda is not None:
+                self.ht = self.ht.cuda(self._cuda)
+
+        if getattr(self, "use_checkpoint", False) and torch.is_grad_enabled():
+            out, ht = checkpoint(self._step, x_t, self.ht, use_reentrant=False)
+        else:
+            out, ht = self._step(x_t, self.ht)
+        self.ht = ht
         return out
 
 
@@ -420,6 +432,12 @@ class VanillaRNNModel(nn.Module):
         self.ht = None
         self._opt.zero_grad()
 
+    def _step(self, x_t, ht):
+        """Pure vanilla-RNN step (no self.* mutation) -- safe to checkpoint."""
+        ht = torch.tanh(x_t @ self.W + ht @ self.U + self.bias)
+        out = self.fc(self.activation_func(ht))
+        return out, ht
+
     def forward(self, x_t):
         batch_size, in_dim = x_t.shape
         assert in_dim == self.in_dim, str((in_dim, self.in_dim))
@@ -430,11 +448,11 @@ class VanillaRNNModel(nn.Module):
             if self._cuda is not None:
                 self.ht = self.ht.cuda(self._cuda)
 
-        self.ht = torch.tanh(x_t @ self.W + self.ht @ self.U + self.bias) #standard RNN update rule
-
-        activation = self.activation_func(self.ht)
-        out = self.fc(activation)
-
+        if getattr(self, "use_checkpoint", False) and torch.is_grad_enabled():
+            out, ht = checkpoint(self._step, x_t, self.ht, use_reentrant=False)
+        else:
+            out, ht = self._step(x_t, self.ht)
+        self.ht = ht
         return out
 
 

@@ -51,7 +51,8 @@ def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
                             sigma_p=0.0, en_num_neurons=None, en_cell_type=None,
                             drift_delta=0.0, drift_k=8, drift_seed=42, drift_ramp=-1,
                             ta_lambda=0.0, ta_beta=0.0, ta_caution="soft",
-                            ta_halt_threshold=1.0, ta_halt_penalty=10.0, num_members=1, dr_sigma_max=0.0):
+                            ta_halt_threshold=1.0, ta_halt_penalty=10.0, num_members=1, dr_sigma_max=0.0,
+            checkpoint_en=False):
     """Like stage0_repro.build_config, but also threads the error-injection knobs
     (parametric sigma_p; structural en_num_neurons/en_cell_type; distributional
     drift_delta/drift_k/drift_seed) into the repo Config. 
@@ -106,7 +107,8 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
             en_ready_floor, baseline_only, error, sigma_p,
             en_num_neurons, en_cell_type, drift_delta, drift_k, drift_seed,
             drift_ramp=-1, seed=0, ta_lambda=0.0, ta_beta=0.0, ta_caution="soft",
-            ta_halt_threshold=1.0, ta_halt_penalty=10.0, num_members=1, dr_sigma_max=0.0):
+            ta_halt_threshold=1.0, ta_halt_penalty=10.0, num_members=1, dr_sigma_max=0.0,
+            checkpoint_en=False):
     torch.manual_seed(seed)   # reproducible init per (config, seed)
     desc, recover_supported = LESIONS[lesion_key]
     if recover and not recover_supported:
@@ -151,7 +153,8 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
         # trust-aware lambda term has ensemble disagreement to read.
         from stage2_ensemble_val import WiredCPN_EN_CoProc
         coproc = WiredCPN_EN_CoProc(cfg, num_members=num_members, base_seed=seed,
-                                    log_dir=log_dir, recycle_thresh=1)
+                                    log_dir=log_dir, recycle_thresh=1,
+                                    checkpoint=checkpoint_en)
     else:
         coproc = cpn.CPN_EN_CoProc(cfg, log_dir=log_dir, recycle_thresh=1)
     exp = experiment.experiment.stage(coproc, cfg)
@@ -223,6 +226,10 @@ def main():
                    help="Distributional: drift subspace dimensionality. Default 8.")
     p.add_argument("--drift-seed", type=int, default=42,
                    help="Distributional: drift direction seed. Default 42.")
+    p.add_argument("--checkpoint-en", action="store_true",
+                   help="Gradient-checkpoint the EN rollout (recompute activations in "
+                        "backward). Cuts memory for ensemble baselines (B4/B5) at some "
+                        "compute cost; results are identical.")
     p.add_argument("--dr-sigma-max", type=float, default=0.0,
                    help="Domain randomization (B2): per-trial sigma_p ~ U(0, this). >0 wraps "
                         "the EN so the CPN trains against a range of perturbations. 0 = off.")
@@ -312,6 +319,7 @@ def main():
             ta_beta=args.ta_beta, ta_caution=args.ta_caution,
             ta_halt_threshold=args.ta_halt_threshold, ta_halt_penalty=args.ta_halt_penalty,
             num_members=args.num_members, dr_sigma_max=args.dr_sigma_max,
+            checkpoint_en=args.checkpoint_en,
         )
 
     if not args.baseline_only:

@@ -50,7 +50,7 @@ class WiredEnsembleEN(nn.Module):
     Holds M independent EN instances, each initialized with a distinct seed.
     """
     def __init__(self, in_dim, out_dim, M=5, num_neurons=None, activation=torch.nn.Tanh,
-                 cuda=None, cell_type="lstm", base_seed=0):
+                 cuda=None, cell_type="lstm", base_seed=0, checkpoint=False):
         super().__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
@@ -60,6 +60,7 @@ class WiredEnsembleEN(nn.Module):
         self._cuda = cuda
         self.cell_type = cell_type
         self.base_seed = base_seed
+        self.checkpoint = checkpoint
 
         self.members = nn.ModuleList()
         for i in range(M):
@@ -72,6 +73,7 @@ class WiredEnsembleEN(nn.Module):
                 cuda=cuda,
                 cell_type=cell_type,
             )
+            en_i.use_checkpoint = checkpoint   # gradient-checkpoint each member's rollout
             self.members.append(en_i)
 
     def forward(self, x_t: torch.Tensor):
@@ -147,6 +149,7 @@ class WiredEnsembleAdapter(nn.Module):
             cuda=self.wired_ensemble._cuda,
             cell_type=self.cell_type,
             base_seed=self.wired_ensemble.base_seed + 1000,
+            checkpoint=self.wired_ensemble.checkpoint,
         )
         new_adapter = WiredEnsembleAdapter(new_ensemble)
         new_opt = AdamW(new_adapter.parameters(), lr=4e-3, weight_decay=0.04)
@@ -155,7 +158,8 @@ class WiredEnsembleAdapter(nn.Module):
 
 class WiredCPN_EN_CoProc(cpn.CPN_EN_CoProc):
     """CoProc harness using a WiredEnsembleAdapter as the EN stand-in."""
-    def __init__(self, cfg, num_members=5, base_seed=0, log_dir=None, recycle_thresh=None):
+    def __init__(self, cfg, num_members=5, base_seed=0, log_dir=None, recycle_thresh=None,
+                 checkpoint=False):
         super().__init__(cfg, log_dir=log_dir, recycle_thresh=recycle_thresh)
         in_dim, stim_dim, out_dim, cuda = cfg.unpack()
         en_in_dim = cfg.observer_instance.out_dim + stim_dim + 1
@@ -169,6 +173,7 @@ class WiredCPN_EN_CoProc(cpn.CPN_EN_CoProc):
             cuda=cuda,
             cell_type=cfg.en_cell_type,
             base_seed=base_seed,
+            checkpoint=checkpoint,
         )
         self.en = WiredEnsembleAdapter(wired_ensemble)
         self.opt_en = AdamW(self.en.parameters(), lr=1e-3, weight_decay=0.04)

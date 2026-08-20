@@ -13,13 +13,6 @@ ladder rather than borrowing one number across all three. "clean" (no error) is 
 own `none` axis, run once per (lesion, baseline, seed) and shared as the anchor
 point for every axis's trend, instead of being repeated inside each axis.
 
-Honesty about what can run today:
-  - B1 (vanilla CPN) is fully runnable and is executed for real.
-  - B0 (oracle) and B2-B6 depend on machinery not yet in the repo (oracle mode,
-    domain randomization, the trust-aware / conformal integration of Task 4.3).
-    Those configs are marked status="skipped" with a reason -- never invented
-    numbers. Add them to RUNNABLE_BASELINES with a mapping to run them for real.
-
 Each runnable config maps to a real stage1_error_injection.py invocation; the child
 writes its metrics to a per-run JSON via --metrics-json, which this script reads
 back. Config enumeration, the parallel pool, and per-run checkpoint/resume are
@@ -52,8 +45,8 @@ BASELINE_FLAGS = {
     "B1": [],
     "B2": ["--dr-sigma-max", "0.2"],
     "B3": ["--ta-beta", "0.5"],
-    "B4": ["--ta-lambda", "0.3", "--ta-caution", "soft", "--num-members", "5"],
-    "B5": ["--ta-lambda", "0.3", "--ta-caution", "hard", "--num-members", "5"],
+    "B4": ["--ta-lambda", "0.3", "--ta-caution", "soft", "--num-members", "5", "--checkpoint-en"],
+    "B5": ["--ta-lambda", "0.3", "--ta-caution", "hard", "--num-members", "5", "--checkpoint-en"],
     # "B6": B4 + the ACI conformal cap in the CPN forward (conformal.py). Still
     # to wire; skipped until then.
 }
@@ -93,18 +86,15 @@ AXIS_LEVELS = {
     ],
     "parametric": [
         (f"sigma_p_{m}", ["--error", "parametric", "--sigma-p", str(m)])
-        for m in (0.05, 0.1, 0.2, 0.4, 0.5, 1.0)
+        for m in (0.05, 0.1, 0.2, 0.4)
     ],
     "distributional": [
         (f"delta_{m}", ["--error", "distributional", "--drift-delta", str(m)])
-        for m in (0.05, 0.1, 0.2, 0.4, 0.5, 1.0)
+        for m in (0.05, 0.1, 0.2, 0.4)
     ],
     "structural": [
         ("cap_20",   ["--error", "structural", "--en-num-neurons", "20"]),
         ("cap_40",   ["--error", "structural", "--en-num-neurons", "40"]),
-        ("cap_60",   ["--error", "structural", "--en-num-neurons", "60"]),
-        ("cap_100",   ["--error", "structural", "--en-num-neurons", "100"]),
-        ("cap_120",   ["--error", "structural", "--en-num-neurons", "120"]),
         ("cap_160",  ["--error", "structural", "--en-num-neurons", "160"]),
         ("topo_gru", ["--error", "structural", "--en-cell-type", "gru"]),
         ("topo_rnn", ["--error", "structural", "--en-cell-type", "rnn"]),

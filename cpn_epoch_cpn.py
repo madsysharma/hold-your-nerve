@@ -37,6 +37,7 @@ class CPNEpochCPN:
         # self.reg_stim_weight = 2e-8
         self.reg_stim_weight = None
         self.stims = []
+        self.uncerts = []   # per-step ensemble uncertainty (in-graph), for the lambda term
         self.recent_apparent_task_loss = None   # eta_hat's task loss (EN preds vs targets)
         self.recent_stim_cost_samples = None    # per-step per-batch stim costs, for CVaR
         self.recent_stim_raw = None             # (batch, T, stim_dim) raw stims, for the damage-proxy fraction
@@ -60,6 +61,7 @@ class CPNEpochCPN:
 
     def reset(self):
         self.preds = None
+        self.uncerts = []
         self.tidx = 0
         self.stims = []
         self.recent_apparent_task_loss = None   # eta_hat's task loss (EN preds vs targets)
@@ -100,6 +102,13 @@ class CPNEpochCPN:
         en_in = torch.cat((new_obs_en, new_stim, brain_data[-1]), axis=1)
         cur_pred = self.en(en_in)
 
+        # Trust-aware: if the EN is an ensemble adapter, capture this step's
+        # uncertainty IN-GRAPH so the lambda penalty can train the CPN to avoid
+        # states the ensemble disagrees on. A single EN has no last_uncertainty,
+        # so uncerts stays empty and the lambda term is simply skipped.
+        if hasattr(self.en, "last_uncertainty"):
+            self.uncerts.append(self.en.last_uncertainty())
+
         self.preds.append(cur_pred.unsqueeze(dim=1))
 
         self.tidx += 1
@@ -139,6 +148,25 @@ class CPNEpochCPN:
             train_loss += self.reg_stim_weight * sum(
                 [torch.linalg.norm(s) for s in self.stims]
             )
+
+        # Trust-aware training: L = MSE + ta_lambda*u + ta_beta*C_safety.
+        # Gated by cfg; with the defaults (ta_lambda=ta_beta=0) this block is a
+        # no-op and training is identical to vanilla B1.
+        ta_lambda = getattr(self.cfg, "ta_lambda", 0.0)
+        ta_beta = getattr(self.cfg, "ta_beta", 0.0)
+        if ta_beta > 0.0 and self.stims:
+            from safety import safety_cost
+            theta = torch.stack(self.stims, dim=1)          # (batch, T, stim_dim), in-graph
+            train_loss = train_loss + ta_beta * safety_cost(theta).mean()
+        if ta_lambda > 0.0 and self.uncerts:
+            from safety import soft_penalty, hard_halt
+            u = torch.stack(self.uncerts, dim=0)             # (T, batch), in-graph
+            if getattr(self.cfg, "ta_caution", "soft") == "hard":
+                u_term = hard_halt(u, getattr(self.cfg, "ta_halt_threshold", 1.0),
+                                   getattr(self.cfg, "ta_halt_penalty", 10.0)).mean()
+            else:
+                u_term = soft_penalty(u, 1.0).mean()
+            train_loss = train_loss + ta_lambda * u_term
 
         if is_validation:
             self.recent_train_val_loss = train_loss.item()

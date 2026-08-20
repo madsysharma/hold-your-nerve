@@ -115,13 +115,26 @@ class WiredEnsembleAdapter(nn.Module):
         self.num_neurons = wired_ensemble.num_neurons
         self.activation_func_t = wired_ensemble.activation_func_t
         self.cell_type = wired_ensemble.cell_type
+        self._last_mu = None   # per-member means from the last forward (in-graph)
 
     def forward(self, en_in: torch.Tensor) -> torch.Tensor:
-        mu_stack, _ = self.wired_ensemble(en_in)
+        mu_stack, _ = self.wired_ensemble(en_in)   # (M, batch, out_dim)
+        self._last_mu = mu_stack                    # cache, NOT detached
         return mu_stack.mean(dim=0)  # mu_bar, (batch, out_dim)
+
+    def last_uncertainty(self):
+        """Ensemble disagreement (epistemic) for the most recent forward, (batch,).
+        Computed from the cached member means -- no second forward, so recurrent
+        members are not double-stepped. In-graph, so the trust-aware lambda
+        penalty trains the CPN to avoid states the ensemble disagrees on. Members
+        are single-head, so disagreement (not predicted variance) is the signal."""
+        if self._last_mu is None:
+            raise RuntimeError("call the adapter on an input before last_uncertainty()")
+        return self._last_mu.var(dim=0, unbiased=False).sum(dim=-1)  # (batch,)
 
     def reset(self):
         self.wired_ensemble.reset()
+        self._last_mu = None
 
     def rebuild_members(self):
         """Rebuilds members with new seeds upon reset_en."""

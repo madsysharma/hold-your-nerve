@@ -126,7 +126,7 @@ class CPNEpochCPN:
 
         # Dual-recovery + safety instrumentation (additive; no effect on training).
         # Apparent task loss eta_hat: the EN's predictions vs the behavioural
-        # targets -- what the CPN 'sees' through the emulator. Scored with the
+        # targets: what the CPN 'sees' through the emulator. Scored with the
         # same calc_task_loss used for true recovery so Delta is apples-to-apples.
         from experiment.stats import calc_task_loss
         self.recent_apparent_task_loss = calc_task_loss(preds, targets).item()
@@ -283,7 +283,7 @@ class CPNEpochCPN:
         if _pretrain_out:
             # EN-only mode: reaching the first CPN epoch means the EN is ready/
             # converged (and CPN epochs leave the frozen EN untouched). Save it as
-            # a warm-start checkpoint and stop -- no CPN training performed.
+            # a warm-start checkpoint and stop: no CPN training performed.
             import os as _os
             _d = _os.path.dirname(_os.path.abspath(_pretrain_out))
             _os.makedirs(_d, exist_ok=True)

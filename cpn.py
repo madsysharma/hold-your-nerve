@@ -25,8 +25,8 @@ def load_en_state_dict(en, path, cuda=None):
     """Warm-start an EN from a converged checkpoint so a run skips most pre-training.
 
     `path` is an en.model state_dict file, or a run-log directory containing one.
-    The saved EN MUST match this run's EN architecture -- same lesion/observer (input
-    dim), en_num_neurons, and en_cell_type -- since a warm-start EN is specific to
+    The saved EN MUST match this run's EN architecture - same lesion/observer (input
+    dim), en_num_neurons, and en_cell_type - since a warm-start EN is specific to
     the (lesion, architecture) it was trained under. Raises a clear error on mismatch
     instead of silently loading garbage.
     """

@@ -1,33 +1,25 @@
 """
-run_experiments.py -- factorial B-sweep runner.
+run_experiments.py: factorial B-sweep runner.
 
-This ACTUALLY runs the training pipeline per config and records the real metrics
+This runs the training pipeline per config and records the real metrics
 that stage1_error_injection.py measures (true recovery eta, apparent recovery
-eta_hat, exploitation gap Delta, stim-cost CVaR, damage-proxy fraction). It does
-NOT fabricate results.
+eta_hat, exploitation gap Delta, stim-cost CVaR, damage-proxy fraction).
 
 Severity is per-axis, not a shared magnitude. Parametric and distributional have a
-genuine continuous magnitude (sigma_p, delta); structural does not -- its severity
-is discrete (capacity, topology) -- so each axis carries its OWN named severity
+genuine continuous magnitude (sigma_p, delta); structural does not - its severity
+is discrete (capacity, topology) - so each axis carries its own named severity
 ladder rather than borrowing one number across all three. "clean" (no error) is its
 own `none` axis, run once per (lesion, baseline, seed) and shared as the anchor
 point for every axis's trend, instead of being repeated inside each axis.
-
-Honesty about what can run today:
-  - B1 (vanilla CPN) is fully runnable and is executed for real.
-  - B0 (oracle) and B2-B6 depend on machinery not yet in the repo (oracle mode,
-    domain randomization, the trust-aware / conformal integration of Task 4.3).
-    Those configs are marked status="skipped" with a reason -- never invented
-    numbers. Add them to RUNNABLE_BASELINES with a mapping to run them for real.
 
 Each runnable config maps to a real stage1_error_injection.py invocation; the child
 writes its metrics to a per-run JSON via --metrics-json, which this script reads
 back. Config enumeration, the parallel pool, and per-run checkpoint/resume are
 preserved.
 
-Compute reality: --max-epochs only caps CPN epochs; the EN PRE-TRAINING that
-precedes them is unbounded (it runs to the readiness floor), so every run pays the
-full pre-training first -- hundreds of thousands of epochs (see the Stage 0 notes).
+Compute reality: --max-epochs only caps CPN epochs; the EN pre-training that precedes them 
+is unbounded (it runs to the readiness floor), so every run pays the
+full pre-training first: hundreds of thousands of epochs (see the Stage 0 notes).
 Set --timeout generously (hours) and use a pre-trained-EN warm-start, or raise
 --en-ready-floor to reach CPN sooner. Use the subset flags to run tractable slices.
 """
@@ -46,7 +38,7 @@ STAGE1 = os.path.join(REPO_ROOT, "stage1_error_injection.py")
 # Baseline -> extra stage1 flags. B1 (vanilla) and B3 (safety-penalty-only, beta>0
 # lambda=0) run for real now: neither needs an ensemble. B4/B5/B6 use the lambda
 # uncertainty term, which needs the ensemble wired as the in-loop EN (Stage 2 of
-# the trust-aware integration) -- until then they are skipped, not faked. B0 (oracle)
+# the trust-aware integration): until then they are skipped, not faked. B0 (oracle)
 # needs an oracle mode. Move a baseline into BASELINE_FLAGS to make it runnable.
 BASELINE_FLAGS = {
     "B1": [],
@@ -54,9 +46,9 @@ BASELINE_FLAGS = {
     "B3": ["--ta-beta", "0.5"],
     "B4": ["--ta-lambda", "0.3", "--ta-caution", "soft", "--num-members", "5", "--checkpoint-en"],
     "B5": ["--ta-lambda", "0.3", "--ta-caution", "hard", "--num-members", "5", "--checkpoint-en"],
-    # "B6": B4 + the ACI conformal cap in the CPN forward (conformal.py). Still
-    # to wire; skipped until then.
+    # "B6": B4 + the ACI conformal cap in the CPN forward (conformal.py). TODO
 }
+
 RUNNABLE_BASELINES = set(BASELINE_FLAGS)
 
 # Baselines whose trust-aware weight lambda is meaningful and therefore swept when
@@ -79,7 +71,7 @@ def _strip_flag(flags, name):
 
 LESION_MAP = {"AIP": "aip", "M1": "m1", "F5_M1": "f5m1"}
 
-# Device assigned to THIS worker process. In parallel runs the pool initializer
+# Device assigned to this worker process. In parallel runs the pool initializer
 # hands each worker one device from --devices, round-robin; in serial runs main
 # sets it directly. stage1 --device wants "cpu" or a GPU index string ("0").
 _WORKER_DEVICE = None
@@ -100,9 +92,9 @@ def _init_worker(devices, counter):
     print(f"[worker {idx}] device={_WORKER_DEVICE}", flush=True)
 
 # Per-axis severity ladders: (severity_name, stage1 error flags). Each axis owns its
-# own levels -- nothing borrows sigma_p's number. Structural levels come straight
+# own levels: nothing borrows sigma_p's number. Structural levels come straight
 # from the error definition: capacity 87 -> {20, 40, 160}, topology LSTM -> {GRU,
-# vanilla RNN}. They are DISTINCT conditions, not points on one severity scalar;
+# vanilla RNN}. They are unique conditions, not points on one severity scalar;
 # order them in analysis by measured effect rather than assuming monotonicity
 # (over-capacity 160 in particular need not be "milder" than under-capacity 20).
 AXIS_LEVELS = {
@@ -305,7 +297,7 @@ def main():
                                         opts.baselines, opts.seeds,
                                         ta_lambdas=opts.ta_lambdas)
 
-    # apply subset filters
+    # Apply subset filters
     cfgs = [c for c in all_configs
             if c["lesion"] in opts.lesions and c["error_axis"] in opts.axes
             and c["baseline"] in opts.baselines and c["seed"] in opts.seeds

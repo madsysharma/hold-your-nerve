@@ -258,7 +258,7 @@ class LSTMModel(nn.Module):
 
         # Gradient checkpointing (opt-in via .use_checkpoint) recomputes the step's
         # internal gate activations in backward instead of storing them for every
-        # timestep -- the big memory win under an M-member ensemble rollout. State is
+        # timestep: the big memory win under an M-member ensemble rollout. State is
         # threaded explicitly so numerics/gradients are identical to the plain path.
         if getattr(self, "use_checkpoint", False) and torch.is_grad_enabled():
             out, ht, ct = checkpoint(self._step, x_t, self.ht, self.ct, use_reentrant=False)
@@ -336,7 +336,7 @@ class GRUModel(nn.Module):
         self._opt.zero_grad()
 
     def _step(self, x_t, ht):
-        """Pure GRU step (no self.* mutation) -- safe to checkpoint."""
+        """Pure GRU step (no self.* mutation): safe to checkpoint."""
         HS = self.num_neurons
         gates_x = x_t @ self.W
         gates_h = ht @ self.U
@@ -433,7 +433,7 @@ class VanillaRNNModel(nn.Module):
         self._opt.zero_grad()
 
     def _step(self, x_t, ht):
-        """Pure vanilla-RNN step (no self.* mutation) -- safe to checkpoint."""
+        """Pure vanilla-RNN step (no self.* mutation): safe to checkpoint."""
         ht = torch.tanh(x_t @ self.W + ht @ self.U + self.bias)
         out = self.fc(self.activation_func(ht))
         return out, ht

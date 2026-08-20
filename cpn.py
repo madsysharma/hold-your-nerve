@@ -33,10 +33,10 @@ class CPN_EN_CoProc(experiment.CoProc):
         if log_dir is not None:
             if cfg.dont_train:
                 self.log_dir = os.path.join(log_dir, "phase2")
-                os.makedirs(self.log_dir)
+                os.makedirs(self.log_dir, exist_ok=True)
             else:
                 self.log_dir = os.path.join(log_dir, cfg.cfg_str, str(self.uuid))
-                os.makedirs(self.log_dir)
+                os.makedirs(self.log_dir, exist_ok=True)
 
             print("Log dir will be:", self.log_dir)
         else:
@@ -395,6 +395,9 @@ class CPN_EN_CoProc(experiment.CoProc):
     def report(self, loss_history, mike):
         if self.log_dir is not None:
             if (loss_history.eidx % 50) == 0:
+                # Recreate the run dir if it is missing (idempotent): the log and the
+                # four model checkpoints below all write here.
+                os.makedirs(self.log_dir, exist_ok=True)
                 log_path = os.path.join(self.log_dir, "log")
 
                 with open(log_path, "w") as f:

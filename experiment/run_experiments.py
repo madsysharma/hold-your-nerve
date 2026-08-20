@@ -1,103 +1,346 @@
+"""
+run_experiments.py: factorial B-sweep runner.
+
+This runs the training pipeline per config and records the real metrics
+that stage1_error_injection.py measures (true recovery eta, apparent recovery
+eta_hat, exploitation gap Delta, stim-cost CVaR, damage-proxy fraction).
+
+Severity is per-axis, not a shared magnitude. Parametric and distributional have a
+genuine continuous magnitude (sigma_p, delta); structural does not - its severity
+is discrete (capacity, topology) - so each axis carries its own named severity
+ladder rather than borrowing one number across all three. "clean" (no error) is its
+own `none` axis, run once per (lesion, baseline, seed) and shared as the anchor
+point for every axis's trend, instead of being repeated inside each axis.
+
+Each runnable config maps to a real stage1_error_injection.py invocation; the child
+writes its metrics to a per-run JSON via --metrics-json, which this script reads
+back. Config enumeration, the parallel pool, and per-run checkpoint/resume are
+preserved.
+
+Compute reality: --max-epochs only caps CPN epochs; the EN pre-training that precedes them 
+is unbounded (it runs to the readiness floor), so every run pays the
+full pre-training first: hundreds of thousands of epochs (see the Stage 0 notes).
+Set --timeout generously (hours) and use a pre-trained-EN warm-start, or raise
+--en-ready-floor to reach CPN sooner. Use the subset flags to run tractable slices.
+"""
+import argparse
+import functools
 import itertools
 import json
 import multiprocessing as mp
 import os
+import subprocess
 import sys
-import numpy as np
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+STAGE1 = os.path.join(REPO_ROOT, "stage1_error_injection.py")
+
+# Baseline -> extra stage1 flags. B1 (vanilla) and B3 (safety-penalty-only, beta>0
+# lambda=0) run for real now: neither needs an ensemble. B4/B5/B6 use the lambda
+# uncertainty term, which needs the ensemble wired as the in-loop EN (Stage 2 of
+# the trust-aware integration): until then they are skipped, not faked. B0 (oracle)
+# needs an oracle mode. Move a baseline into BASELINE_FLAGS to make it runnable.
+BASELINE_FLAGS = {
+    "B1": [],
+    "B2": ["--dr-sigma-max", "0.2"],
+    "B3": ["--ta-beta", "0.5"],
+    "B4": ["--ta-lambda", "0.3", "--ta-caution", "soft", "--num-members", "5", "--checkpoint-en"],
+    "B5": ["--ta-lambda", "0.3", "--ta-caution", "hard", "--num-members", "5", "--checkpoint-en"],
+    # "B6": B4 + the ACI conformal cap in the CPN forward (conformal.py). TODO
+}
+
+RUNNABLE_BASELINES = set(BASELINE_FLAGS)
+
+# Baselines whose trust-aware weight lambda is meaningful and therefore swept when
+# --ta-lambdas has >1 value. B1/B2 use no lambda; B3 uses beta (safety) not lambda.
+LAMBDA_SWEEP_BASELINES = {"B4", "B5", "B6"}
 
 
-def generate_configs(output_path="configs.json"):
-    lesions = ["AIP", "M1", "F5_M1"]
-    axes = ["parametric", "distributional", "structural"]
-    magnitudes = [0.0, 0.05, 0.1, 0.2, 0.4]
-    baselines = ["B0", "B1", "B2", "B3", "B4", "B5", "B6"]
-    seeds = [42, 101, 2024, 888, 999]
+def _strip_flag(flags, name):
+    """Return flags with `name` and its following value removed."""
+    out, skip = [], False
+    for f in flags:
+        if skip:
+            skip = False
+            continue
+        if f == name:
+            skip = True
+            continue
+        out.append(f)
+    return out
 
-    combinations = list(
-        itertools.product(lesions, axes, magnitudes, baselines, seeds)
-    )
+LESION_MAP = {"AIP": "aip", "M1": "m1", "F5_M1": "f5m1"}
+
+# Device assigned to this worker process. In parallel runs the pool initializer
+# hands each worker one device from --devices, round-robin; in serial runs main
+# sets it directly. stage1 --device wants "cpu" or a GPU index string ("0").
+_WORKER_DEVICE = None
+
+
+def _current_device(opts):
+    return _WORKER_DEVICE if _WORKER_DEVICE is not None else opts.devices[0]
+
+
+def _init_worker(devices, counter):
+    """Pool initializer: give each worker process a distinct device round-robin,
+    so N workers on M GPUs actually spread across them instead of piling on one."""
+    global _WORKER_DEVICE
+    with counter.get_lock():
+        idx = counter.value
+        counter.value += 1
+    _WORKER_DEVICE = devices[idx % len(devices)]
+    print(f"[worker {idx}] device={_WORKER_DEVICE}", flush=True)
+
+# Per-axis severity ladders: (severity_name, stage1 error flags). Each axis owns its
+# own levels: nothing borrows sigma_p's number. Structural levels come straight
+# from the error definition: capacity 87 -> {20, 40, 160}, topology LSTM -> {GRU,
+# vanilla RNN}. They are unique conditions, not points on one severity scalar;
+# order them in analysis by measured effect rather than assuming monotonicity
+# (over-capacity 160 in particular need not be "milder" than under-capacity 20).
+AXIS_LEVELS = {
+    "none": [
+        ("clean", ["--error", "none"]),
+    ],
+    "parametric": [
+        (f"sigma_p_{m}", ["--error", "parametric", "--sigma-p", str(m)])
+        for m in (0.05, 0.1, 0.2, 0.4)
+    ],
+    "distributional": [
+        (f"delta_{m}", ["--error", "distributional", "--drift-delta", str(m)])
+        for m in (0.05, 0.1, 0.2, 0.4)
+    ],
+    "structural": [
+        ("cap_20",   ["--error", "structural", "--en-num-neurons", "20"]),
+        ("cap_40",   ["--error", "structural", "--en-num-neurons", "40"]),
+        ("cap_160",  ["--error", "structural", "--en-num-neurons", "160"]),
+        ("topo_gru", ["--error", "structural", "--en-cell-type", "gru"]),
+        ("topo_rnn", ["--error", "structural", "--en-cell-type", "rnn"]),
+    ],
+}
+
+
+def flags_for(axis, severity):
+    """The stage1 error flags for a given (axis, severity), or None if unknown."""
+    for sev, flags in AXIS_LEVELS.get(axis, []):
+        if sev == severity:
+            return flags
+    return None
+
+
+def generate_configs(output_path, lesions, axes, baselines, seeds, ta_lambdas=(0.3,)):
+    conditions = [(axis, sev) for axis in axes for sev, _ in AXIS_LEVELS.get(axis, [])]
+    combos = itertools.product(lesions, conditions, baselines, seeds)
     configs = []
-
-    for idx, (lesion, axis, mag, base, seed) in enumerate(combinations):
-        configs.append({
-            "run_id": f"run_{idx:04d}",
-            "lesion": lesion,
-            "error_axis": axis,
-            "magnitude": mag,
-            "baseline": base,
-            "seed": seed,
-            "status": "pending",
-        })
-
+    idx = 0
+    for (lesion, (axis, sev), base, seed) in combos:
+        # lambda-using baselines get one config per swept lambda; the rest get one.
+        lambdas = list(ta_lambdas) if base in LAMBDA_SWEEP_BASELINES else [None]
+        for lam in lambdas:
+            cfg = {
+                "run_id": f"run_{idx:04d}",
+                "lesion": lesion, "error_axis": axis, "severity": sev,
+                "baseline": base, "seed": seed, "status": "pending",
+            }
+            if lam is not None:
+                cfg["ta_lambda"] = lam   # recorded so B4@0.1 vs B4@1.0 are distinguishable
+            configs.append(cfg)
+            idx += 1
     with open(output_path, "w") as f:
         json.dump(configs, f, indent=2)
     print(f"Generated {len(configs)} configurations in '{output_path}'.")
+    return configs
 
 
-def execute_single_run(config):
-    checkpoint_file = f"results/{config['run_id']}.json"
-    if os.path.exists(checkpoint_file):
-        with open(checkpoint_file, "r") as f:
+def build_command(config, opts, metrics_path, log_dir):
+    """Real stage1 invocation for a runnable config, or None if not runnable."""
+    if config["baseline"] not in RUNNABLE_BASELINES:
+        return None
+    lesion = LESION_MAP.get(config["lesion"])
+    if lesion is None:
+        return None
+    ef = flags_for(config["error_axis"], config["severity"])
+    if ef is None:
+        return None
+    bflags = list(BASELINE_FLAGS.get(config["baseline"], []))
+    if "ta_lambda" in config:
+        bflags = _strip_flag(bflags, "--ta-lambda") + ["--ta-lambda", str(config["ta_lambda"])]
+    cmd = [sys.executable, STAGE1, "--lesion", lesion, *ef,
+           *bflags,
+           "--device", _current_device(opts),
+           "--seed", str(config["seed"]),
+           "--max-epochs", str(opts.max_epochs),
+           "--stim-sigma", str(opts.stim_sigma),
+           "--log-dir", log_dir,
+           "--metrics-json", metrics_path]
+    if opts.en_ready_floor is not None:
+        cmd += ["--en-ready-floor", str(opts.en_ready_floor)]
+    if getattr(opts, "warm_start_en", None):
+        cmd += ["--warm-start-en", opts.warm_start_en]
+    return cmd
+
+
+def execute_single_run(config, opts):
+    checkpoint = os.path.join(opts.results_dir, f"{config['run_id']}.json")
+    if os.path.exists(checkpoint):
+        with open(checkpoint) as f:
             return json.load(f)
 
-    np.random.seed(config["seed"])
+    base = config["baseline"]
+    result = {**config}
 
-    task_recovery = np.clip(
-        100 - config["magnitude"] * 80 + np.random.normal(0, 2), 0, 100
-    )
-    perceived_recovery = task_recovery + (
-        config["magnitude"] * 20 if config["error_axis"] != "none" else 0
-    )
-    exploitation_gap = perceived_recovery - task_recovery
+    if base not in RUNNABLE_BASELINES:
+        result["status"] = "skipped"
+        result["reason"] = (f"{base} not yet runnable: B0 needs an oracle mode; "
+                            f"B6 needs the ACI conformal cap wired into the CPN "
+                            f"forward. Not fabricating a result.")
+        _write(checkpoint, result)
+        return result
 
-    result = {
-        **config,
-        "metrics": {
-            "R_percent": float(task_recovery),
-            "eta_hat": float(perceived_recovery),
-            "exploitation_gap_delta": float(exploitation_gap),
-            "E_stim": float(np.random.uniform(0.5, 3.0)),
-            "shannon_k": float(np.random.uniform(1.2, 2.5)),
-            "J_C_cost_return": float(np.random.uniform(0.0, 10.0)),
-        },
-        "status": "completed",
-    }
+    run_log = os.path.join(opts.results_dir, f"{config['run_id']}_logs")
+    metrics_path = os.path.join(opts.results_dir, f"{config['run_id']}_metrics.json")
+    os.makedirs(run_log, exist_ok=True)
+    cmd = build_command(config, opts, metrics_path, run_log)
+    if cmd is None:
+        result["status"] = "skipped"
+        result["reason"] = "no (axis, severity) -> flags mapping for this config"
+        _write(checkpoint, result)
+        return result
 
-    os.makedirs("results", exist_ok=True)
-    with open(checkpoint_file, "w") as f:
-        json.dump(result, f, indent=2)
+    if opts.dry_run:
+        result["status"] = "dry_run"
+        result["command"] = " ".join(cmd)
+        return result
 
+    try:
+        proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True,
+                              timeout=opts.timeout)
+    except subprocess.TimeoutExpired:
+        result["status"] = "failed"
+        result["error"] = f"timed out after {opts.timeout}s"
+        _write(checkpoint, result)
+        return result
+
+    if proc.returncode != 0 or not os.path.exists(metrics_path):
+        result["status"] = "failed"
+        result["error"] = (proc.stderr or proc.stdout or "")[-800:]
+        _write(checkpoint, result)
+        return result
+
+    with open(metrics_path) as f:
+        per_lesion = json.load(f)
+    m = per_lesion.get(LESION_MAP[config["lesion"]])   # real metrics for this lesion
+    result["metrics"] = m                              # may be null if run never reached CPN epochs
+    result["status"] = "completed" if m is not None else "completed_no_cpn"
+    _write(checkpoint, result)
     return result
 
 
+def _write(path, obj):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(obj, f, indent=2)
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--configs", default="configs.json")
+    p.add_argument("--results-dir", default="results")
+    p.add_argument("--warm-start-en", default=None,
+                   help="Path to a converged en.model to warm-start every run from. "
+                        "NOTE: a warm-start EN is specific to its lesion+architecture, "
+                        "so a single path only fits runs with the same lesion/arch; "
+                        "run one lesion at a time, or leave unset and pass --warm-start-en "
+                        "per stage1 invocation.")
+    # Real-run parameters (passed through to stage1).
+    p.add_argument("--max-epochs", type=int, required=True,
+                   help="Per-run CPN-epoch cap. Does NOT bound EN pre-training, so a "
+                        "run still pays the full pre-training before any CPN epoch.")
+    p.add_argument("--stim-sigma", type=float, default=2.175)
+    p.add_argument("--en-ready-floor", default=None,
+                   help="Passed to stage1; raise it to reach CPN training sooner.")
+    p.add_argument("--timeout", type=int, default=None,
+                   help="Per-run wall-clock timeout in seconds (default: none). Set "
+                        "this to HOURS -- EN pre-training is long.")
+    p.add_argument("--workers", type=int, default=1,
+                   help="Parallel runs. Default 1: training is heavy, so oversubscribing "
+                        "CPUs/GPU thrashes. On a multi-GPU box set this to the GPU count.")
+    p.add_argument("--devices", nargs="+", default=["cpu"],
+                   help="Device(s) for the runs: 'cpu' or GPU index strings, e.g. "
+                        "--devices 0 1 2 3. Assigned to workers round-robin. A single "
+                        "device is used for every run.")
+    # Subset controls, so you can run a tractable slice.
+    p.add_argument("--lesions", nargs="+", default=["AIP", "M1", "F5_M1"])
+    p.add_argument("--axes", nargs="+", default=list(AXIS_LEVELS.keys()),
+                   help="Which error axes to include (default: none parametric "
+                        "distributional structural). 'none' is the clean anchor.")
+    p.add_argument("--severities", nargs="+", default=None,
+                   help="Optional: restrict to these severity names (e.g. cap_20 "
+                        "sigma_p_0.2). Default: all levels of the selected axes.")
+    p.add_argument("--baselines", nargs="+", default=["B0", "B1", "B2", "B3", "B4", "B5", "B6"])
+    p.add_argument("--seeds", nargs="+", type=int, default=[42, 101, 2024, 888, 999])
+    p.add_argument("--ta-lambdas", nargs="+", type=float, default=[0.3],
+                   help="Lambda values to sweep for the trust-aware baselines (B4/B5/B6). "
+                        "Each such baseline runs once per value; results record ta_lambda. "
+                        "Default [0.3] reproduces the single-lambda behaviour. "
+                        "Delete configs.json before changing this (the grid is regenerated).")
+    p.add_argument("--limit", type=int, default=None, help="Run at most N configs (after filtering).")
+    p.add_argument("--dry-run", action="store_true", help="Print the commands without running.")
+    opts = p.parse_args()
+
+    os.makedirs(opts.results_dir, exist_ok=True)
+    if os.path.exists(opts.configs):
+        with open(opts.configs) as f:
+            all_configs = json.load(f)
+    else:
+        all_configs = generate_configs(opts.configs, opts.lesions, opts.axes,
+                                        opts.baselines, opts.seeds,
+                                        ta_lambdas=opts.ta_lambdas)
+
+    # Apply subset filters
+    cfgs = [c for c in all_configs
+            if c["lesion"] in opts.lesions and c["error_axis"] in opts.axes
+            and c["baseline"] in opts.baselines and c["seed"] in opts.seeds
+            and (opts.severities is None or c["severity"] in opts.severities)]
+    if opts.limit:
+        cfgs = cfgs[:opts.limit]
+
+    runnable = sum(1 for c in cfgs if c["baseline"] in RUNNABLE_BASELINES)
+    print("=" * 64)
+    print(f"B-sweep: {len(cfgs)} configs selected | {runnable} runnable now "
+          f"({','.join(sorted(RUNNABLE_BASELINES))}), {len(cfgs) - runnable} will be skipped")
+    print(f"max_epochs={opts.max_epochs} workers={opts.workers} "
+          f"{'DRY RUN' if opts.dry_run else ''}")
+    print("=" * 64)
+
+    print(f"devices: {opts.devices}")
+    worker = functools.partial(execute_single_run, opts=opts)
+    counts = {}
+    if opts.workers == 1:
+        global _WORKER_DEVICE
+        _WORKER_DEVICE = opts.devices[0]
+        for i, c in enumerate(cfgs, 1):
+            r = worker(c)
+            counts[r["status"]] = counts.get(r["status"], 0) + 1
+            if i % 10 == 0 or i == len(cfgs):
+                print(f"[{i}/{len(cfgs)}] " + "  ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+    else:
+        if opts.workers > len(opts.devices) and opts.devices != ["cpu"]:
+            print(f"NOTE: {opts.workers} workers on {len(opts.devices)} device(s) -- "
+                  f"some GPUs will host multiple concurrent runs.")
+        counter = mp.Value("i", 0)
+        with mp.Pool(processes=opts.workers, initializer=_init_worker,
+                     initargs=(opts.devices, counter)) as pool:
+            for i, r in enumerate(pool.imap_unordered(worker, cfgs), 1):
+                counts[r["status"]] = counts.get(r["status"], 0) + 1
+                if i % 10 == 0 or i == len(cfgs):
+                    print(f"[{i}/{len(cfgs)}] " + "  ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+
+    print("=" * 64)
+    print("Done. Status:", "  ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+    print(f"Per-run results + metrics in '{os.path.abspath(opts.results_dir)}'")
+    print("=" * 64)
+
+
 if __name__ == "__main__":
-    print("=" * 60)
-    print("Starting 1,575-run Factorial Experiment Sweeper")
-    print("=" * 60)
-
-    if not os.path.exists("configs.json"):
-        print("`configs.json` not found. Generating new run configurations...")
-        generate_configs()
-
-    with open("configs.json", "r") as f:
-        all_configs = json.load(f)
-
-    num_configs = len(all_configs)
-    num_cpus = os.cpu_count()
-    print(f"Loaded {num_configs} configurations across {num_cpus} CPU workers.")
-
-    os.makedirs("results", exist_ok=True)
-
-    results = []
-    with mp.Pool(processes=num_cpus) as pool:
-        for idx, result in enumerate(
-            pool.imap_unordered(execute_single_run, all_configs), start=1
-        ):
-            results.append(result)
-            if idx % 100 == 0 or idx == num_configs:
-                print(f"Completed [{idx}/{num_configs}] runs ({(idx/num_configs)*100:.1f}%)")
-
-    print("=" * 60)
-    print("Experiment sweep completed successfully!")
-    print(f"Results stored in '{os.path.abspath('results')}'")
-    print("=" * 60)
+    main()

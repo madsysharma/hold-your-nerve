@@ -6,7 +6,7 @@ Takes the M emulators Stage 2 trains, wraps them as an EnsembleLike, and scores 
 objective across lambda in {0, 0.1, 1, 10, 100} for every estimator that can run and both caution
 modes. The output is the table you read to pick a lambda before spending compute on a full run.
 
-It measures the objective DECOMPOSITION, not training-per-lambda: trust_aware_loss is not wired into
+It measures the objective decomposition, not training-per-lambda: trust_aware_loss is not wired into
 cpn_epoch_cpn yet (stage2_ensemble.py flags that as the Stage 3 integration). Lambda only matters if
 lam * u is comparable to the task loss, and that is what this shows.
 
@@ -35,9 +35,9 @@ HALT_PENALTY = 10.0                          #MOReL's flat penalty, scaled by la
 
 
 class TrainedENEnsemble(torch.nn.Module):
-    #stage 2's trained ENs, dressed up as an EnsembleLike
-    #they are single-headed, so forward() reports zero variance. MAX_FROBENIUS and SINGLE_VAR read
-    #var, so on these members they come out as 0 -- read those rows as "not measured", not as certain
+    # Stage 2's trained ENs, dressed up as an EnsembleLike
+    # they are single-headed, so forward() reports zero variance. MAX_FROBENIUS and SINGLE_VAR read
+    # var, so on these members they come out as 0: read those rows as "not measured", not as certain
     def __init__(self, members):
         super().__init__()
         self.members = torch.nn.ModuleList(members)
@@ -58,8 +58,8 @@ class TrainedENEnsemble(torch.nn.Module):
 
 
 def run_grid(ensemble, x_t, theta, target, halt_threshold, *, weights=None, calib=None):
-    #every (estimator, caution, lambda) cell. One row dict each
-    #u only depends on the estimator, so it is computed once per estimator, not once per cell
+    # Every (estimator, caution, lambda) cell. One row dict each
+    # u only depends on the estimator, so it is computed once per estimator, not once per cell
     weights = weights or SafetyWeights()
     calib = calib or StimCalibration()
 

@@ -20,6 +20,35 @@ MODEL_FILENAME_EN = "en.model"
 MODEL_FILENAME_MIKE = "mike.model"
 MODEL_FILENAME_OBS = "obs.model"
 
+
+def load_en_state_dict(en, path, cuda=None):
+    """Warm-start an EN from a converged checkpoint so a run skips most pre-training.
+
+    `path` is an en.model state_dict file, or a run-log directory containing one.
+    The saved EN MUST match this run's EN architecture - same lesion/observer (input
+    dim), en_num_neurons, and en_cell_type - since a warm-start EN is specific to
+    the (lesion, architecture) it was trained under. Raises a clear error on mismatch
+    instead of silently loading garbage.
+    """
+    if os.path.isdir(path):
+        path = os.path.join(path, MODEL_FILENAME_EN)
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"warm-start EN not found at {path}")
+    state = torch.load(path, map_location="cpu")
+    if isinstance(state, dict) and "state_dict" in state and "W" not in state:
+        state = state["state_dict"]   # tolerate a wrapped checkpoint
+    try:
+        en.load_state_dict(state)
+    except RuntimeError as e:
+        raise RuntimeError(
+            f"warm-start EN at {path} does not match this run's EN architecture. A "
+            f"warm-start EN is specific to its lesion (observer input dim), "
+            f"en_num_neurons, and en_cell_type -- use one saved from a run with the "
+            f"SAME lesion and architecture. Underlying error: {e}"
+        )
+    if cuda is not None:
+        en.cuda(cuda)
+
 g_logger = logging.getLogger("cpn")
 
 
@@ -33,10 +62,10 @@ class CPN_EN_CoProc(experiment.CoProc):
         if log_dir is not None:
             if cfg.dont_train:
                 self.log_dir = os.path.join(log_dir, "phase2")
-                os.makedirs(self.log_dir)
+                os.makedirs(self.log_dir, exist_ok=True)
             else:
                 self.log_dir = os.path.join(log_dir, cfg.cfg_str, str(self.uuid))
-                os.makedirs(self.log_dir)
+                os.makedirs(self.log_dir, exist_ok=True)
 
             print("Log dir will be:", self.log_dir)
         else:
@@ -86,6 +115,11 @@ class CPN_EN_CoProc(experiment.CoProc):
             cuda=cfg.cuda,
             cell_type=cfg.en_cell_type,
         )
+
+        # Warm-start: load a converged EN so this run skips most pre-training.
+        if getattr(cfg, "warm_start_en_path", None):
+            load_en_state_dict(self.en, cfg.warm_start_en_path, cfg.cuda)
+            print("Warm-started EN from:", cfg.warm_start_en_path)
 
         self.stims = None
         self.brain_data = None
@@ -395,6 +429,9 @@ class CPN_EN_CoProc(experiment.CoProc):
     def report(self, loss_history, mike):
         if self.log_dir is not None:
             if (loss_history.eidx % 50) == 0:
+                # Recreate the run dir if it is missing (idempotent): the log and the
+                # four model checkpoints below all write here.
+                os.makedirs(self.log_dir, exist_ok=True)
                 log_path = os.path.join(self.log_dir, "log")
 
                 with open(log_path, "w") as f:

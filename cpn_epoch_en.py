@@ -56,6 +56,12 @@ class CPNEpochEN:
         return self.en, self.opt_en
 
     def new_en(self, old_en):
+        # If the EN is a rebuildable wrapper (ensemble adapter, domain-randomized
+        # wrapper), rebuild through it so the wrapper - and its last_uncertainty /
+        # randomization - survives reset_en. Without this the wrapper is silently
+        # replaced by a single vanilla EN and the trust-aware lambda term no-ops.
+        if hasattr(old_en, "rebuild_members"):
+            return old_en.rebuild_members()
         en, opt_en = ErrorInjector.build_structural_en(
             old_en.in_dim,
             old_en.out_dim,

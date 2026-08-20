@@ -24,8 +24,11 @@ Examples:
   python stage1_error_injection.py --error none --baseline-only
 """
 import argparse
+import json
 import os
 import sys
+
+import torch
 
 import cpn
 import cpn_epoch_cpn
@@ -45,8 +48,12 @@ warnings.filterwarnings("ignore")
 
 
 def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
+                            warm_start_en=None, pretrain_en_out=None,
                             sigma_p=0.0, en_num_neurons=None, en_cell_type=None,
-                            drift_delta=0.0, drift_k=8, drift_seed=42, drift_ramp=-1):
+                            drift_delta=0.0, drift_k=8, drift_seed=42, drift_ramp=-1,
+                            ta_lambda=0.0, ta_beta=0.0, ta_caution="soft",
+                            ta_halt_threshold=1.0, ta_halt_penalty=10.0, num_members=1, dr_sigma_max=0.0,
+            checkpoint_en=False):
     """Like stage0_repro.build_config, but also threads the error-injection knobs
     (parametric sigma_p; structural en_num_neurons/en_cell_type; distributional
     drift_delta/drift_k/drift_seed) into the repo Config. 
@@ -61,7 +68,13 @@ def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
         drift_k=drift_k,
         drift_seed=drift_seed,
         drift_ramp=drift_ramp,
+        ta_lambda=ta_lambda, ta_beta=ta_beta, ta_caution=ta_caution,
+        ta_halt_threshold=ta_halt_threshold, ta_halt_penalty=ta_halt_penalty,
     )
+    if warm_start_en is not None:
+        common["warm_start_en_path"] = warm_start_en
+    if pretrain_en_out is not None:
+        common["pretrain_en_out"] = pretrain_en_out
     if coadapt is not None:
         common["coadapt"] = coadapt
     if en_num_neurons is not None:
@@ -98,7 +111,10 @@ def describe_error(error, sigma_p, en_num_neurons, en_cell_type, drift_delta):
 def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
             en_ready_floor, baseline_only, error, sigma_p,
             en_num_neurons, en_cell_type, drift_delta, drift_k, drift_seed,
-            drift_ramp=-1):
+            drift_ramp=-1, seed=0, ta_lambda=0.0, ta_beta=0.0, ta_caution="soft",
+            ta_halt_threshold=1.0, ta_halt_penalty=10.0, num_members=1, dr_sigma_max=0.0,
+            checkpoint_en=False, warm_start_en=None, pretrain_en_out=None):
+    torch.manual_seed(seed)   # reproducible init per (config, seed)
     desc, recover_supported = LESIONS[lesion_key]
     if recover and not recover_supported:
         raise SystemExit(
@@ -126,10 +142,27 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
         lesion_key, device, recover, coadapt, stim_sigma,
         sigma_p=sigma_p, en_num_neurons=en_num_neurons, en_cell_type=en_cell_type,
         drift_delta=drift_delta, drift_k=drift_k, drift_seed=drift_seed,
-        drift_ramp=drift_ramp,
+        drift_ramp=drift_ramp, ta_lambda=ta_lambda, ta_beta=ta_beta,
+        ta_caution=ta_caution, ta_halt_threshold=ta_halt_threshold,
+        ta_halt_penalty=ta_halt_penalty,
+        warm_start_en=warm_start_en, pretrain_en_out=pretrain_en_out,
     )
 
-    coproc = cpn.CPN_EN_CoProc(cfg, log_dir=log_dir, recycle_thresh=1)
+    if dr_sigma_max and dr_sigma_max > 0.0:
+        # Domain-randomized emulator (B2): CPN trains against a range of
+        # per-trial parametric perturbations of the EN.
+        from domain_random import DomainRandomizedCoProc
+        coproc = DomainRandomizedCoProc(cfg, sigma_max=dr_sigma_max, seed=seed,
+                                        log_dir=log_dir, recycle_thresh=1)
+    elif num_members and num_members > 1:
+        # Ensemble emulator (B4/B5/B6): M members wired as the EN so the
+        # trust-aware lambda term has ensemble disagreement to read.
+        from stage2_ensemble_val import WiredCPN_EN_CoProc
+        coproc = WiredCPN_EN_CoProc(cfg, num_members=num_members, base_seed=seed,
+                                    log_dir=log_dir, recycle_thresh=1,
+                                    checkpoint=checkpoint_en)
+    else:
+        coproc = cpn.CPN_EN_CoProc(cfg, log_dir=log_dir, recycle_thresh=1)
     exp = experiment.experiment.stage(coproc, cfg)
 
     healthy = exp.comp_loss_healthy.item()
@@ -169,7 +202,14 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
     print(f"    damage-proxy fraction    = {dmg_s}   (Shannon k; violation metric)")
     print("-" * 72 + "\n")
     sys.stdout.flush()
-    return max_recov
+    return {
+        "eta_true": eta_true if eta_true is not None else max_recov,
+        "eta_hat": eta_hat,
+        "delta": delta,
+        "cvar": cvar_val,
+        "damage_frac": dmg,
+        "max_recov": max_recov,
+    }
 
 
 def main():
@@ -192,6 +232,37 @@ def main():
                    help="Distributional: drift subspace dimensionality. Default 8.")
     p.add_argument("--drift-seed", type=int, default=42,
                    help="Distributional: drift direction seed. Default 42.")
+    p.add_argument("--pretrain-en-out", default=None,
+                   help="EN-only mode: train the EN to convergence, save it to this path, "
+                        "then stop before any CPN training. Run once per lesion with "
+                        "--error none and a SINGLE EN (no --num-members / --dr-sigma-max) "
+                        "to mint clean warm-start ENs.")
+    p.add_argument("--warm-start-en", default=None,
+                   help="Path to a converged en.model (or a run-log dir containing one) "
+                        "to load INSTEAD of training the EN from scratch -- skips most "
+                        "pre-training. Must match this run's lesion + EN architecture.")
+    p.add_argument("--checkpoint-en", action="store_true",
+                   help="Gradient-checkpoint the EN rollout (recompute activations in "
+                        "backward). Cuts memory for ensemble baselines (B4/B5) at some "
+                        "compute cost; results are identical.")
+    p.add_argument("--dr-sigma-max", type=float, default=0.0,
+                   help="Domain randomization (B2): per-trial sigma_p ~ U(0, this). >0 wraps "
+                        "the EN so the CPN trains against a range of perturbations. 0 = off.")
+    p.add_argument("--num-members", type=int, default=1,
+                   help="Ensemble size M for the emulator. >1 wires M members as the "
+                        "EN (needed for the trust-aware lambda term, B4/B5/B6). Default 1 = single EN.")
+    p.add_argument("--ta-lambda", type=float, default=0.0,
+                   help="Trust-aware uncertainty weight (needs an ensemble EN). Default 0 = off.")
+    p.add_argument("--ta-beta", type=float, default=0.0,
+                   help="Trust-aware safety-cost weight (stim energy). Default 0 = off.")
+    p.add_argument("--ta-caution", choices=["soft", "hard"], default="soft",
+                   help="soft = MOPO graded penalty; hard = MOReL HALT.")
+    p.add_argument("--ta-halt-threshold", type=float, default=1.0)
+    p.add_argument("--ta-halt-penalty", type=float, default=10.0)
+    p.add_argument("--seed", type=int, default=0,
+                   help="Manual seed for reproducible EN/CPN init.")
+    p.add_argument("--metrics-json", default=None,
+                   help="If set, write the per-lesion metrics dict to this JSON path.")
     p.add_argument("--drift-ramp", type=int, default=-1,
                    help="Distributional timescale: -1 = slow ramp within one trial, restarting each trial (default); 0 = instantaneous onset; N > 0 = slow ramp ACROSS trials over N total steps (multi-session MINDFUL drift that accumulates).")
 
@@ -259,7 +330,12 @@ def main():
             key, device, args.log_dir, recover, coadapt, args.stim_sigma,
             floor, args.baseline_only, args.error, sigma_p,
             en_num_neurons, en_cell_type, drift_delta, args.drift_k, args.drift_seed,
-            args.drift_ramp,
+            args.drift_ramp, seed=args.seed, ta_lambda=args.ta_lambda,
+            ta_beta=args.ta_beta, ta_caution=args.ta_caution,
+            ta_halt_threshold=args.ta_halt_threshold, ta_halt_penalty=args.ta_halt_penalty,
+            num_members=args.num_members, dr_sigma_max=args.dr_sigma_max,
+            checkpoint_en=args.checkpoint_en, warm_start_en=args.warm_start_en,
+            pretrain_en_out=args.pretrain_en_out,
         )
 
     if not args.baseline_only:
@@ -270,9 +346,13 @@ def main():
               f"max_epochs={args.max_epochs}", flush=True)
         for key in keys:
             r = summary[key]
-            shown = "n/a" if r is None else f"{r * 100:.1f}%"
-            print(f"  {key:5s}: max recovery = {shown}", flush=True)
+            shown = "n/a" if r is None else f"{r['eta_true'] * 100:.1f}%"
+            print(f"  {key:5s}: true recovery = {shown}", flush=True)
         print("=" * 72, flush=True)
+
+    if args.metrics_json:
+        with open(args.metrics_json, "w") as _f:
+            json.dump(summary, _f, indent=2)
         sys.stdout.flush()
 
 

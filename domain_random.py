@@ -1,5 +1,5 @@
 """
-domain_random.py -- Baseline B2 (domain-randomized CPN).
+domain_random.py - Baseline B2 (domain-randomized CPN).
 
 The naive-robustness alternative to the uncertainty-aware ensemble: instead of
 training the co-processor through one fixed wrong emulator, train it through a
@@ -7,8 +7,8 @@ DISTRIBUTION of wrong emulators. Each trial the CPN sees the EN with a freshly
 resampled parametric perturbation (sigma_p ~ U(0, sigma_max)), so it cannot
 overfit to one specific emulator's errors.
 
-The perturbation is applied FUNCTIONALLY (torch.func.functional_call), so the
-stored EN weights are never modified -- EN training proceeds on clean weights, and
+The perturbation is applied functionally (torch.func.functional_call), so the
+stored EN weights are never modified: EN training proceeds on clean weights, and
 randomization is gated to CPN epochs only. This is the "does brute-force robustness
 match the trust-aware method?" control (H3's honest comparison point).
 """
@@ -52,8 +52,11 @@ class DomainRandomizedEN(nn.Module):
         pert = {}
         for name, p in self.base_en.named_parameters():
             std = p.detach().std()
-            noise = torch.randn(p.shape, generator=self._gen) * (self._sigma_p * std)
-            pert[name] = p + noise.to(p.device)   # in-graph wrt base params (frozen in CPN epochs)
+            # Sample on the CPU generator (for reproducible seeding), then move to the
+            # parameter's device BEFORE scaling -- std lives on p.device, so multiplying
+            # a CPU noise tensor by it would mismatch devices on GPU.
+            noise = torch.randn(p.shape, generator=self._gen).to(p.device)
+            pert[name] = p + noise * (self._sigma_p * std)   # in-graph wrt base params (frozen in CPN epochs)
         self._perturbed = pert
 
     def forward(self, x, *args, **kwargs):

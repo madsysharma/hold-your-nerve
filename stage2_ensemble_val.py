@@ -27,6 +27,7 @@ from torch.optim import AdamW
 
 import cpn
 from cpn import load_en_state_dict
+from uncertainty import uncertainty_from, Estimator
 import cpn_epoch_cpn
 import cpn_epoch_en
 import experiment.experiment
@@ -52,7 +53,8 @@ class WiredEnsembleEN(nn.Module):
     """
     def __init__(self, in_dim, out_dim, M=5, num_neurons=None, activation=torch.nn.Tanh,
                  cuda=None, cell_type="lstm", base_seed=0, checkpoint=False,
-                 warm_start_path=None, warm_start_jitter=0.01):
+                 warm_start_path=None, warm_start_jitter=0.01,
+                 estimator="disagreement", dropout_p=0.1):
         super().__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
@@ -65,6 +67,8 @@ class WiredEnsembleEN(nn.Module):
         self.checkpoint = checkpoint
         self.warm_start_path = warm_start_path
         self.warm_start_jitter = warm_start_jitter
+        self.estimator = estimator
+        self.dropout_p = dropout_p
 
         self.members = nn.ModuleList()
         for i in range(M):
@@ -90,6 +94,16 @@ class WiredEnsembleEN(nn.Module):
                             noise = torch.randn(prm.shape, generator=gen) * (
                                 warm_start_jitter * prm.detach().std())
                             prm.add_(noise.to(prm.device))
+            if estimator in ("max_frobenius", "single_var"):
+                # heteroscedastic variance head (trained via NLL in cpn_epoch_en)
+                en_i.fc_var = nn.Linear(en_i.num_neurons, en_i.out_dim)
+                en_i.predict_variance = True
+                if cuda is not None:
+                    en_i.fc_var = en_i.fc_var.cuda(cuda)
+            elif estimator == "mc_dropout":
+                en_i._drop = nn.Dropout(dropout_p)
+                if cuda is not None:
+                    en_i._drop = en_i._drop.cuda(cuda)
             self.members.append(en_i)
 
     def forward(self, x_t: torch.Tensor):
@@ -99,8 +113,10 @@ class WiredEnsembleEN(nn.Module):
         for en in self.members:
             out = en(x_t)
             mus.append(out)
-            # Standard single-head ENs don't output predicted variance directly; default to zero tensor
-            vars_.append(torch.zeros_like(out))
+            if getattr(en, "predict_variance", False):
+                vars_.append(en.last_logvar.exp())   # predicted variance (M,batch,out)
+            else:
+                vars_.append(torch.zeros_like(out))
         mu_stack = torch.stack(mus, dim=0)    # (M, batch, out_dim)
         var_stack = torch.stack(vars_, dim=0)  # (M, batch, out_dim)
         return mu_stack, var_stack
@@ -134,25 +150,71 @@ class WiredEnsembleAdapter(nn.Module):
         self.activation_func_t = wired_ensemble.activation_func_t
         self.cell_type = wired_ensemble.cell_type
         self._last_mu = None   # per-member means from the last forward (in-graph)
+        self._last_var = None  # per-member predicted variances (for max_frob/single_var)
+        self._last_x = None    # last EN input (for mc_dropout's stochastic passes)
+        self.estimator = getattr(wired_ensemble, "estimator", "disagreement")
 
     def forward(self, en_in: torch.Tensor) -> torch.Tensor:
-        mu_stack, _ = self.wired_ensemble(en_in)   # (M, batch, out_dim)
+        self._last_x = en_in
+        mu_stack, var_stack = self.wired_ensemble(en_in)   # each (M, batch, out_dim)
         self._last_mu = mu_stack                    # cache, NOT detached
+        self._last_var = var_stack
         return mu_stack.mean(dim=0)  # mu_bar, (batch, out_dim)
 
     def last_uncertainty(self):
-        """Ensemble disagreement (epistemic) for the most recent forward, (batch,).
-        Computed from the cached member means -- no second forward, so recurrent
-        members are not double-stepped. In-graph, so the trust-aware lambda
-        penalty trains the CPN to avoid states the ensemble disagrees on. Members
-        are single-head, so disagreement (not predicted variance) is the signal."""
+        """Batch-wise uncertainty (batch,) for the most recent forward, using the
+        configured estimator. disagreement / max_frobenius / single_var are computed
+        from the CACHED (mu, var) -- no re-forward, so recurrent members are not
+        double-stepped, and the result is in-graph wrt the current stim so the
+        trust-aware lambda penalty trains the CPN. mc_dropout needs stochastic passes,
+        so it is handled separately with hidden-state save/restore."""
         if self._last_mu is None:
             raise RuntimeError("call the adapter on an input before last_uncertainty()")
-        return self._last_mu.var(dim=0, unbiased=False).sum(dim=-1)  # (batch,)
+        if self.estimator == "mc_dropout":
+            return self._mc_dropout_uncertainty()
+        return uncertainty_from(self._last_mu, self._last_var, Estimator(self.estimator))
+
+    def last_logvar_bar(self):
+        """Mean predicted log-variance across members (batch, out_dim), or None if
+        this estimator has no variance heads. Used by the EN's variance NLL."""
+        lvs = [m.last_logvar for m in self.wired_ensemble.members
+               if getattr(m, "predict_variance", False)]
+        return torch.stack(lvs, dim=0).mean(dim=0) if lvs else None
+
+    def _mc_dropout_uncertainty(self, n_passes=8):
+        """Predictive variance across n stochastic (dropout-on) passes, computed from
+        the SAVED hidden state so the passes don't advance the real rollout. States
+        are cloned per pass and restored after; differentiable wrt the current stim."""
+        members = self.wired_ensemble.members
+        drops = [m for m in self.wired_ensemble.modules() if isinstance(m, nn.Dropout)]
+        if not drops or self._last_x is None:
+            # no dropout modules -> fall back to disagreement rather than error out
+            return self._last_mu.var(dim=0, unbiased=False).sum(dim=-1)
+        saved = [(m.ht, getattr(m, "ct", None)) for m in members]
+        was = [d.training for d in drops]
+        for d in drops:
+            d.train()
+        passes = []
+        for _ in range(n_passes):
+            for m, (ht, ct) in zip(members, saved):
+                m.ht = ht.detach()
+                if ct is not None:
+                    m.ct = ct.detach()
+            mu_stack, _ = self.wired_ensemble(self._last_x)
+            passes.append(mu_stack.mean(dim=0))   # (batch, out)
+        for m, (ht, ct) in zip(members, saved):   # restore the real rollout state
+            m.ht = ht
+            if ct is not None:
+                m.ct = ct
+        for d, w in zip(drops, was):
+            d.train(w)
+        return torch.stack(passes, dim=0).var(dim=0, unbiased=False).sum(dim=-1)  # (batch,)
 
     def reset(self):
         self.wired_ensemble.reset()
         self._last_mu = None
+        self._last_var = None
+        self._last_x = None
 
     def rebuild_members(self):
         """Rebuilds members with new seeds upon reset_en."""
@@ -168,6 +230,8 @@ class WiredEnsembleAdapter(nn.Module):
             checkpoint=self.wired_ensemble.checkpoint,
             warm_start_path=self.wired_ensemble.warm_start_path,
             warm_start_jitter=self.wired_ensemble.warm_start_jitter,
+            estimator=self.wired_ensemble.estimator,
+            dropout_p=self.wired_ensemble.dropout_p,
         )
         new_adapter = WiredEnsembleAdapter(new_ensemble)
         new_opt = AdamW(new_adapter.parameters(), lr=4e-3, weight_decay=0.04)
@@ -177,7 +241,7 @@ class WiredEnsembleAdapter(nn.Module):
 class WiredCPN_EN_CoProc(cpn.CPN_EN_CoProc):
     """CoProc harness using a WiredEnsembleAdapter as the EN stand-in."""
     def __init__(self, cfg, num_members=5, base_seed=0, log_dir=None, recycle_thresh=None,
-                 checkpoint=False, warm_start_path=None):
+                 checkpoint=False, warm_start_path=None, estimator=None):
         super().__init__(cfg, log_dir=log_dir, recycle_thresh=recycle_thresh)
         in_dim, stim_dim, out_dim, cuda = cfg.unpack()
         en_in_dim = cfg.observer_instance.out_dim + stim_dim + 1
@@ -185,6 +249,8 @@ class WiredCPN_EN_CoProc(cpn.CPN_EN_CoProc):
         # is about to be replaced, so its warm-start is discarded -- harmless).
         if warm_start_path is None:
             warm_start_path = getattr(cfg, "warm_start_en_path", None)
+        if estimator is None:
+            estimator = getattr(cfg, "uncertainty_estimator", "disagreement")
 
         wired_ensemble = WiredEnsembleEN(
             en_in_dim,
@@ -197,6 +263,7 @@ class WiredCPN_EN_CoProc(cpn.CPN_EN_CoProc):
             base_seed=base_seed,
             checkpoint=checkpoint,
             warm_start_path=warm_start_path,
+            estimator=estimator,
         )
         self.en = WiredEnsembleAdapter(wired_ensemble)
         self.opt_en = AdamW(self.en.parameters(), lr=1e-3, weight_decay=0.04)

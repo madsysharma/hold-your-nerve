@@ -54,8 +54,7 @@ def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
                             sigma_p=0.0, en_num_neurons=None, en_cell_type=None,
                             drift_delta=0.0, drift_k=8, drift_seed=42, drift_ramp=-1,
                             ta_lambda=0.0, ta_beta=0.0, ta_caution="soft",
-                            ta_halt_threshold=1.0, ta_halt_penalty=10.0, num_members=1, dr_sigma_max=0.0,
-            checkpoint_en=False):
+                            ta_halt_threshold=1.0, ta_halt_penalty=10.0, num_members=1, dr_sigma_max=0.0, checkpoint_en=False, oracle=False):
     """Like stage0_repro.build_config, but also threads the error-injection knobs
     (parametric sigma_p; structural en_num_neurons/en_cell_type; distributional
     drift_delta/drift_k/drift_seed) into the repo Config. 

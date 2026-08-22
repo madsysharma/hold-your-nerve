@@ -1,25 +1,33 @@
 """
-run_experiments.py: factorial B-sweep runner.
+run_experiments.py -- factorial B-sweep runner.
 
-This runs the training pipeline per config and records the real metrics
+This ACTUALLY runs the training pipeline per config and records the real metrics
 that stage1_error_injection.py measures (true recovery eta, apparent recovery
-eta_hat, exploitation gap Delta, stim-cost CVaR, damage-proxy fraction).
+eta_hat, exploitation gap Delta, stim-cost CVaR, damage-proxy fraction). It does
+NOT fabricate results.
 
 Severity is per-axis, not a shared magnitude. Parametric and distributional have a
-genuine continuous magnitude (sigma_p, delta); structural does not - its severity
-is discrete (capacity, topology) - so each axis carries its own named severity
+genuine continuous magnitude (sigma_p, delta); structural does not -- its severity
+is discrete (capacity, topology) -- so each axis carries its OWN named severity
 ladder rather than borrowing one number across all three. "clean" (no error) is its
 own `none` axis, run once per (lesion, baseline, seed) and shared as the anchor
 point for every axis's trend, instead of being repeated inside each axis.
+
+Honesty about what can run today:
+  - B1 (vanilla CPN) is fully runnable and is executed for real.
+  - B0 (oracle) and B2-B6 depend on machinery not yet in the repo (oracle mode,
+    domain randomization, the trust-aware / conformal integration of Task 4.3).
+    Those configs are marked status="skipped" with a reason -- never invented
+    numbers. Add them to RUNNABLE_BASELINES with a mapping to run them for real.
 
 Each runnable config maps to a real stage1_error_injection.py invocation; the child
 writes its metrics to a per-run JSON via --metrics-json, which this script reads
 back. Config enumeration, the parallel pool, and per-run checkpoint/resume are
 preserved.
 
-Compute reality: --max-epochs only caps CPN epochs; the EN pre-training that precedes them 
-is unbounded (it runs to the readiness floor), so every run pays the
-full pre-training first: hundreds of thousands of epochs (see the Stage 0 notes).
+Compute reality: --max-epochs only caps CPN epochs; the EN PRE-TRAINING that
+precedes them is unbounded (it runs to the readiness floor), so every run pays the
+full pre-training first -- hundreds of thousands of epochs (see the Stage 0 notes).
 Set --timeout generously (hours) and use a pre-trained-EN warm-start, or raise
 --en-ready-floor to reach CPN sooner. Use the subset flags to run tractable slices.
 """
@@ -38,17 +46,17 @@ STAGE1 = os.path.join(REPO_ROOT, "stage1_error_injection.py")
 # Baseline -> extra stage1 flags. B1 (vanilla) and B3 (safety-penalty-only, beta>0
 # lambda=0) run for real now: neither needs an ensemble. B4/B5/B6 use the lambda
 # uncertainty term, which needs the ensemble wired as the in-loop EN (Stage 2 of
-# the trust-aware integration): until then they are skipped, not faked. B0 (oracle)
+# the trust-aware integration) -- until then they are skipped, not faked. B0 (oracle)
 # needs an oracle mode. Move a baseline into BASELINE_FLAGS to make it runnable.
 BASELINE_FLAGS = {
+    "B0": ["--oracle"],
     "B1": [],
     "B2": ["--dr-sigma-max", "0.2"],
     "B3": ["--ta-beta", "0.5"],
     "B4": ["--ta-lambda", "0.3", "--ta-caution", "soft", "--num-members", "5", "--checkpoint-en"],
     "B5": ["--ta-lambda", "0.3", "--ta-caution", "hard", "--num-members", "5", "--checkpoint-en"],
-    # "B6": B4 + the ACI conformal cap in the CPN forward (conformal.py). TODO
+    "B6": ["--ta-lambda", "0.3", "--ta-caution", "soft", "--num-members", "5", "--checkpoint-en", "--conformal"],
 }
-
 RUNNABLE_BASELINES = set(BASELINE_FLAGS)
 
 # Baselines whose trust-aware weight lambda is meaningful and therefore swept when
@@ -71,7 +79,7 @@ def _strip_flag(flags, name):
 
 LESION_MAP = {"AIP": "aip", "M1": "m1", "F5_M1": "f5m1"}
 
-# Device assigned to this worker process. In parallel runs the pool initializer
+# Device assigned to THIS worker process. In parallel runs the pool initializer
 # hands each worker one device from --devices, round-robin; in serial runs main
 # sets it directly. stage1 --device wants "cpu" or a GPU index string ("0").
 _WORKER_DEVICE = None
@@ -92,9 +100,9 @@ def _init_worker(devices, counter):
     print(f"[worker {idx}] device={_WORKER_DEVICE}", flush=True)
 
 # Per-axis severity ladders: (severity_name, stage1 error flags). Each axis owns its
-# own levels: nothing borrows sigma_p's number. Structural levels come straight
+# own levels -- nothing borrows sigma_p's number. Structural levels come straight
 # from the error definition: capacity 87 -> {20, 40, 160}, topology LSTM -> {GRU,
-# vanilla RNN}. They are unique conditions, not points on one severity scalar;
+# vanilla RNN}. They are DISTINCT conditions, not points on one severity scalar;
 # order them in analysis by measured effect rather than assuming monotonicity
 # (over-capacity 160 in particular need not be "milder" than under-capacity 20).
 AXIS_LEVELS = {
@@ -164,6 +172,12 @@ def build_command(config, opts, metrics_path, log_dir):
     bflags = list(BASELINE_FLAGS.get(config["baseline"], []))
     if "ta_lambda" in config:
         bflags = _strip_flag(bflags, "--ta-lambda") + ["--ta-lambda", str(config["ta_lambda"])]
+    # Ablation overrides: any --flag in extra_flags replaces the baseline's value.
+    extra = list(config.get("extra_flags", []))
+    for tok in extra:
+        if isinstance(tok, str) and tok.startswith("--"):
+            bflags = _strip_flag(bflags, tok)
+    bflags = bflags + [str(t) for t in extra]
     cmd = [sys.executable, STAGE1, "--lesion", lesion, *ef,
            *bflags,
            "--device", _current_device(opts),
@@ -176,6 +190,11 @@ def build_command(config, opts, metrics_path, log_dir):
         cmd += ["--en-ready-floor", str(opts.en_ready_floor)]
     if getattr(opts, "warm_start_en", None):
         cmd += ["--warm-start-en", opts.warm_start_en]
+    if getattr(opts, "coadapt", "off") not in (None, "off"):
+        cmd += ["--coadapt", opts.coadapt]   # brain co-adaptation during CPN training
+    if getattr(opts, "log_reliability", False):
+        rel = os.path.join(opts.results_dir, f"{config['run_id']}_reliability.json")
+        cmd += ["--reliability-log", rel]
     return cmd
 
 
@@ -190,9 +209,7 @@ def execute_single_run(config, opts):
 
     if base not in RUNNABLE_BASELINES:
         result["status"] = "skipped"
-        result["reason"] = (f"{base} not yet runnable: B0 needs an oracle mode; "
-                            f"B6 needs the ACI conformal cap wired into the CPN "
-                            f"forward. Not fabricating a result.")
+        result["reason"] = (f"{base} not yet runnable. Not fabricating a result.")
         _write(checkpoint, result)
         return result
 
@@ -246,6 +263,12 @@ def main():
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--configs", default="configs.json")
     p.add_argument("--results-dir", default="results")
+    p.add_argument("--coadapt", nargs="?", const="on", default="off",
+                   help="Pass through to stage1: 'on' enables brain co-adaptation "
+                        "during CPN training (default off).")
+    p.add_argument("--log-reliability", action="store_true",
+                   help="Log (uncertainty, emulator error) pairs per run for the H4 "
+                        "reliability diagram (analysis.py --do reliability).")
     p.add_argument("--warm-start-en", default=None,
                    help="Path to a converged en.model to warm-start every run from. "
                         "NOTE: a warm-start EN is specific to its lesion+architecture, "
@@ -297,7 +320,7 @@ def main():
                                         opts.baselines, opts.seeds,
                                         ta_lambdas=opts.ta_lambdas)
 
-    # Apply subset filters
+    # apply subset filters
     cfgs = [c for c in all_configs
             if c["lesion"] in opts.lesions and c["error_axis"] in opts.axes
             and c["baseline"] in opts.baselines and c["seed"] in opts.seeds

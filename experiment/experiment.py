@@ -414,6 +414,10 @@ class Experiment:
 
             actuals = []
 
+            if hasattr(self.coproc.en, "set_next_din"):   # B0 oracle: keep the true-brain EN in sync
+                self.coproc.en.reset()
+                self.coproc.en.init_step(din[:, 0, :].T)
+
             mike_out = self.mike(din[:, 0, :].T)
 
             for tidx in range(steps - 1):
@@ -435,6 +439,8 @@ class Experiment:
                 else:
                     en_obs_override = None
 
+                if hasattr(self.coproc.en, "set_next_din"):
+                    self.coproc.en.set_next_din(din[:, tidx + 1, :].T)
                 stim = self._coproc_forward(obs, en_obs_override=en_obs_override)
 
                 # new_stim will be cloned in here, to prevent accidentally backpropagating through the "brain", aka mike.

@@ -34,6 +34,8 @@ class CPNEpochEN:
 
     def reset(self):
         self.preds = None
+        self.logvars = []
+        self._rel_u = []
         self.tidx = 0
         self.reset_models()
 
@@ -57,8 +59,8 @@ class CPNEpochEN:
 
     def new_en(self, old_en):
         # If the EN is a rebuildable wrapper (ensemble adapter, domain-randomized
-        # wrapper), rebuild through it so the wrapper - and its last_uncertainty /
-        # randomization - survives reset_en. Without this the wrapper is silently
+        # wrapper), rebuild THROUGH it so the wrapper -- and its last_uncertainty /
+        # randomization -- survives reset_en. Without this the wrapper is silently
         # replaced by a single vanilla EN and the trust-aware lambda term no-ops.
         if hasattr(old_en, "rebuild_members"):
             return old_en.rebuild_members()
@@ -86,6 +88,8 @@ class CPNEpochEN:
     def ensure_preds(self, batch_size):
         if self.preds is None:
             self.preds = []
+            self.logvars = []   # per-step ensemble log-variance (variance-head estimators)
+            self._rel_u = []    # per-step ensemble uncertainty at eval (reliability diagrams)
 
     # Give en_obs_override to use observations from EN with mismatched sigma 
     def forward(self, brain_data, loss_history, is_validation, stim=None, en_obs_override=None):
@@ -110,6 +114,15 @@ class CPNEpochEN:
         cur_pred = self.en(en_in)
 
         self.preds.append(cur_pred.unsqueeze(dim=1))
+        if hasattr(self.en, "last_logvar_bar"):
+            lv = self.en.last_logvar_bar()
+            if lv is not None:
+                self.logvars.append(lv.unsqueeze(dim=1))
+        if is_validation and getattr(self.cfg, "reliability_log_path", None) \
+                and hasattr(self.en, "last_uncertainty"):
+            # H4: the ensemble's uncertainty for this input, paired below with the
+            # emulator's ACTUAL prediction error to test calibration per error axis.
+            self._rel_u.append(self.en.last_uncertainty().detach().unsqueeze(dim=1))
 
         self.tidx += 1
 
@@ -120,6 +133,27 @@ class CPNEpochEN:
         preds = utils.trunc_to_trial_end(preds, trial_end[:, :-1, :])
 
         pred_loss = calc_pred_loss(preds, actuals)
+        if getattr(self, "logvars", None):
+            # Train the variance heads to predict mu's squared error (mu detached, so
+            # this trains sigma^2 only and leaves the MSE-trained mean untouched).
+            logvars = torch.cat(self.logvars, axis=1)
+            logvars = utils.trunc_to_trial_end(logvars, trial_end[:, :-1, :])
+            resid2 = (actuals - preds.detach()) ** 2
+            var_nll = 0.5 * (logvars + resid2 / logvars.exp().clamp_min(1e-6)).mean()
+            pred_loss = pred_loss + var_nll
+
+        if is_validation and getattr(self, "_rel_u", None) \
+                and getattr(self.cfg, "reliability_log_path", None):
+            import json as _json
+            u = torch.cat(self._rel_u, axis=1)                                  # (batch, T)
+            u = utils.trunc_to_trial_end(u.unsqueeze(-1), trial_end[:, :-1, :]).squeeze(-1)
+            err = (preds - actuals).pow(2).sum(dim=-1).sqrt()                   # (batch, T) L2 emulator error
+            n = min(u.shape[1], err.shape[1])
+            rec = {"u": u[:, :n].reshape(-1).tolist(),
+                   "err": err[:, :n].reshape(-1).tolist()}
+            with open(self.cfg.reliability_log_path, "w") as _f:
+                _json.dump(rec, _f)   # overwrite: keep the latest (best-trained) validation
+            self._rel_u = []
 
         if is_validation:
             self.recent_pred_val_loss = pred_loss.item()

@@ -31,4 +31,29 @@ class coverage:
         self.alpha = min(max(self.alpha, 0.0), 1.0) #clamp to between 0 and 1
         self.scores.append(float(current_score)) #append current score
 
-    
+
+def interval_width(cov):
+    """Task 4.2.2 -- conformal interval width W_t = 2 * q_hat_{1-alpha_t}.
+
+    The half-width q_hat = cov.q() is the coverage radius, recomputed each step from the
+    ACI-updated alpha (subtask 1's `coverage`). Returns math.inf before any score has been
+    seen (cov.q() is inf then), which the gate below reads as "maximally uncertain".
+    """
+    return 2.0 * cov.q()
+
+
+def gated_amplitude_cap(theta, W_t, W_threshold, safe_norm):
+    """Task 4.2.3 -- gated, shrink-only, direction-preserving amplitude cap.
+
+    If the conformal interval W_t exceeds W_threshold, scale theta toward the origin so
+    ||theta||_2 <= safe_norm (per-sample scale = min(1, safe_norm / ||theta||)); otherwise
+    theta passes through unchanged. The cap ONLY shrinks and never rotates, so the
+    co-processor's chosen stimulation direction is preserved while its magnitude is reined
+    in exactly when the emulator's prediction interval is wide. Differentiable, so the CPN
+    still trains through it (learning direction under the cap).
+    """
+    if not (W_t > W_threshold):
+        return theta
+    norm = theta.norm(dim=-1, keepdim=True).clamp_min(1e-6)
+    scale = (safe_norm / norm).clamp(max=1.0)   # shrink-only: never > 1
+    return theta * scale

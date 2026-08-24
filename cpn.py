@@ -227,6 +227,10 @@ class CPN_EN_CoProc(experiment.CoProc):
         return self.epoch_type in (EpochType.CPN, EpochType.VAL_CPN)
 
     @property
+    def recent_halt_frac(self):
+        return getattr(self.cpn_epoch, "recent_halt_frac", None)
+
+    @property
     def recent_apparent_task_loss(self):
         return getattr(self.cpn_epoch, "recent_apparent_task_loss", None)
 

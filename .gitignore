@@ -68,3 +68,4 @@ results/*
 config.json
 experiment/config.json
 experiment/results/*
+smoke_b5/

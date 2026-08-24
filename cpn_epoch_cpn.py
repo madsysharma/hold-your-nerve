@@ -38,6 +38,7 @@ class CPNEpochCPN:
         self.reg_stim_weight = None
         self.stims = []
         self.uncerts = []   # per-step ensemble uncertainty (in-graph), for the lambda term
+        self.recent_halt_frac = None            # fraction of (step, trial) pairs over the halt threshold
         self.recent_apparent_task_loss = None   # eta_hat's task loss (EN preds vs targets)
         self.recent_stim_cost_samples = None    # per-step per-batch stim costs, for CVaR
         self.recent_stim_raw = None             # (batch, T, stim_dim) raw stims, for the damage-proxy fraction
@@ -64,6 +65,7 @@ class CPNEpochCPN:
         self.uncerts = []
         self.tidx = 0
         self.stims = []
+        self.recent_halt_frac = None
         self.recent_apparent_task_loss = None   # eta_hat's task loss (EN preds vs targets)
         self.recent_stim_cost_samples = None    # per-step per-batch stim costs, for CVaR
         self.recent_stim_raw = None             # (batch, T, stim_dim) raw stims, for the damage-proxy fraction
@@ -162,8 +164,22 @@ class CPNEpochCPN:
             from safety import soft_penalty, hard_halt
             u = torch.stack(self.uncerts, dim=0)             # (T, batch), in-graph
             if getattr(self.cfg, "ta_caution", "soft") == "hard":
-                u_term = hard_halt(u, getattr(self.cfg, "ta_halt_threshold", 1.0),
-                                   getattr(self.cfg, "ta_halt_penalty", 10.0)).mean()
+                thr = getattr(self.cfg, "ta_halt_threshold", 1.0)
+                u_term = hard_halt(u, thr,
+                                   getattr(self.cfg, "ta_halt_penalty", 10.0),
+                                   temperature=getattr(self.cfg, "ta_halt_temperature", None)).mean()
+                # Instrumentation (additive; bool tensor, so no gradient touched).
+                self.recent_halt_frac = (u > thr).float().mean().item()
+                #TEMP: is the threshold firing at all? Delete once answered.
+                # Count CPN epochs, not all epochs: eidx spans the EN pretraining
+                # run too, so `eidx % 25` fires at arbitrary CPN epochs (or none).
+                if not is_validation:
+                    self._halt_dbg_n = getattr(self, "_halt_dbg_n", 0) + 1
+                if not is_validation and (self._halt_dbg_n <= 3 or self._halt_dbg_n % 25 == 0):
+                    print(f"[halt] frac={self.recent_halt_frac:.4f} "
+                          f"u_mean={u.mean().item():.4g} u_max={u.max().item():.4g} "
+                          f"thr={thr:.4g} u_term={u_term.item():.5f} "
+                          f"grad={u_term.grad_fn is not None}")
             else:
                 u_term = soft_penalty(u, 1.0).mean()
             train_loss = train_loss + ta_lambda * u_term

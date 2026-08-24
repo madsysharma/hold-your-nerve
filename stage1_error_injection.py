@@ -52,7 +52,8 @@ def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
                             sigma_p=0.0, en_num_neurons=None, en_cell_type=None,
                             drift_delta=0.0, drift_k=8, drift_seed=42, drift_ramp=-1,
                             ta_lambda=0.0, ta_beta=0.0, ta_caution="soft",
-                            ta_halt_threshold=1.0, ta_halt_penalty=10.0, num_members=1, dr_sigma_max=0.0,
+                            ta_halt_threshold=1.0, ta_halt_penalty=10.0, ta_halt_temperature=None,
+            num_members=1, dr_sigma_max=0.0,
             checkpoint_en=False):
     """Like stage0_repro.build_config, but also threads the error-injection knobs
     (parametric sigma_p; structural en_num_neurons/en_cell_type; distributional
@@ -70,6 +71,7 @@ def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
         drift_ramp=drift_ramp,
         ta_lambda=ta_lambda, ta_beta=ta_beta, ta_caution=ta_caution,
         ta_halt_threshold=ta_halt_threshold, ta_halt_penalty=ta_halt_penalty,
+        ta_halt_temperature=ta_halt_temperature,
     )
     if warm_start_en is not None:
         common["warm_start_en_path"] = warm_start_en
@@ -112,7 +114,8 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
             en_ready_floor, baseline_only, error, sigma_p,
             en_num_neurons, en_cell_type, drift_delta, drift_k, drift_seed,
             drift_ramp=-1, seed=0, ta_lambda=0.0, ta_beta=0.0, ta_caution="soft",
-            ta_halt_threshold=1.0, ta_halt_penalty=10.0, num_members=1, dr_sigma_max=0.0,
+            ta_halt_threshold=1.0, ta_halt_penalty=10.0, ta_halt_temperature=None,
+            num_members=1, dr_sigma_max=0.0,
             checkpoint_en=False, warm_start_en=None, pretrain_en_out=None):
     torch.manual_seed(seed)   # reproducible init per (config, seed)
     desc, recover_supported = LESIONS[lesion_key]
@@ -144,7 +147,7 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
         drift_delta=drift_delta, drift_k=drift_k, drift_seed=drift_seed,
         drift_ramp=drift_ramp, ta_lambda=ta_lambda, ta_beta=ta_beta,
         ta_caution=ta_caution, ta_halt_threshold=ta_halt_threshold,
-        ta_halt_penalty=ta_halt_penalty,
+        ta_halt_penalty=ta_halt_penalty, ta_halt_temperature=ta_halt_temperature,
         warm_start_en=warm_start_en, pretrain_en_out=pretrain_en_out,
     )
 
@@ -258,6 +261,7 @@ def main():
     p.add_argument("--ta-caution", choices=["soft", "hard"], default="soft",
                    help="soft = MOPO graded penalty; hard = MOReL HALT.")
     p.add_argument("--ta-halt-threshold", type=float, default=1.0)
+    p.add_argument("--ta-halt-temperature", type=float, default=None)
     p.add_argument("--ta-halt-penalty", type=float, default=10.0)
     p.add_argument("--seed", type=int, default=0,
                    help="Manual seed for reproducible EN/CPN init.")
@@ -331,7 +335,7 @@ def main():
             floor, args.baseline_only, args.error, sigma_p,
             en_num_neurons, en_cell_type, drift_delta, args.drift_k, args.drift_seed,
             args.drift_ramp, seed=args.seed, ta_lambda=args.ta_lambda,
-            ta_beta=args.ta_beta, ta_caution=args.ta_caution,
+            ta_beta=args.ta_beta, ta_caution=args.ta_caution, ta_halt_temperature = args.ta_halt_temperature,
             ta_halt_threshold=args.ta_halt_threshold, ta_halt_penalty=args.ta_halt_penalty,
             num_members=args.num_members, dr_sigma_max=args.dr_sigma_max,
             checkpoint_en=args.checkpoint_en, warm_start_en=args.warm_start_en,

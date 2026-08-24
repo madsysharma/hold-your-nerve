@@ -45,7 +45,7 @@ BASELINE_FLAGS = {
     "B2": ["--dr-sigma-max", "0.2"],
     "B3": ["--ta-beta", "0.5"],
     "B4": ["--ta-lambda", "0.3", "--ta-caution", "soft", "--num-members", "5", "--checkpoint-en"],
-    "B5": ["--ta-lambda", "0.3", "--ta-caution", "hard", "--num-members", "5", "--checkpoint-en"],
+    "B5": ["--ta-lambda", "0.3", "--ta-caution", "hard", "--num-members", "5", "--checkpoint-en","--ta-halt-temperature", "0.1"],
     # "B6": B4 + the ACI conformal cap in the CPN forward (conformal.py). TODO
 }
 

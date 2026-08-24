@@ -31,4 +31,8 @@ class coverage:
         self.alpha = min(max(self.alpha, 0.0), 1.0) #clamp to between 0 and 1
         self.scores.append(float(current_score)) #append current score
 
-    
+    def calculate_threshold(self, tolerance):
+        q = self.q()
+        if not math.isfinite(q) or q <= 0.0:
+            return math.inf #not calibrated: never halt
+        return (tolerance / q) ** 2

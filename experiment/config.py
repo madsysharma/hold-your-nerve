@@ -58,6 +58,7 @@ class Config:
     ta_caution: str = "soft"        # 'soft' (MOPO graded) or 'hard' (MOReL HALT)
     ta_halt_threshold: float = 1.0  # hard caution: uncertainty above this is penalised
     ta_halt_penalty: float = 10.0   # hard caution: penalty applied above threshold
+    ta_halt_temperature: typing.Optional[float] = None  # STE width; None = penalty carries no gradient
 
     def shuffle_dataset(self):
         _, self.loader_train[0], self.loader_test[0] = get_dataset(
@@ -211,6 +212,7 @@ def get(
     ta_lambda=0.0,
     ta_beta=0.0,
     ta_caution="soft",
+    ta_halt_temperature=None,
     ta_halt_threshold=1.0,
     ta_halt_penalty=10.0,
 ):
@@ -396,6 +398,7 @@ def get(
         pretrain_en_out=pretrain_en_out,
         ta_lambda=ta_lambda,
         ta_beta=ta_beta,
+        ta_halt_temperature=ta_halt_temperature,
         ta_caution=ta_caution,
         ta_halt_threshold=ta_halt_threshold,
         ta_halt_penalty=ta_halt_penalty,

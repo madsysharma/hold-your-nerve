@@ -290,10 +290,13 @@ def soft_penalty(u: torch.Tensor, lam: float) -> torch.Tensor:
     return lam * u
 
 
-def hard_halt(u: torch.Tensor, threshold: float, penalty: float) -> torch.Tensor:
+def hard_halt(u: torch.Tensor, threshold: float, penalty: float,
+              temperature: Optional[float] = None) -> torch.Tensor: #pass a temperature to enable backprop
     """MOReL-style hard cutoff: a large penalty wherever u exceeds threshold, zero elsewhere.
     Returns same shape as u. (The paired action - clamping theta
     to zero on HALT - is applied at the call site in the training loop.)"""
-    return torch.where(u > threshold,
-                       torch.full_like(u, penalty),
-                       torch.zeros_like(u))
+    hard = torch.where(u > threshold, torch.full_like(u, penalty), torch.zeros_like(u))
+    if temperature is None:
+        return hard                                   #previous behavior for no temperature passed in
+    surrogate = penalty * torch.sigmoid((u - threshold) / temperature) #treat loss as a sigmoid function * penalty instead of u_term*penalty
+    return surrogate + (hard - surrogate).detach()

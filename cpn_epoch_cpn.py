@@ -99,6 +99,17 @@ class CPNEpochCPN:
 
         new_stim = self.cpn(cpn_in)
 
+        if getattr(self.cfg, "conformal_enabled", False):
+            # B6 (task 4.2): gate stim amplitude by the ACI conformal interval. Uses
+            # subtask 1's coverage (alpha/q_hat), 4.2.2's interval_width, 4.2.3's cap.
+            from conformal import coverage as _Coverage, interval_width, gated_amplitude_cap
+            if getattr(self, "_coverage", None) is None:
+                self._coverage = _Coverage()
+            W_t = interval_width(self._coverage)
+            new_stim = gated_amplitude_cap(new_stim, W_t,
+                                           self.cfg.conformal_width_threshold,
+                                           self.cfg.conformal_safe_norm)
+
         # en receives (obs, stims, trial_end)
         new_obs_en = brain_data[0]
         en_in = torch.cat((new_obs_en, new_stim, brain_data[-1]), axis=1)
@@ -122,6 +133,12 @@ class CPNEpochCPN:
 
         preds = torch.cat(self.preds, axis=1)
         preds = utils.trunc_to_trial_end(preds, trial_end[:, :-1, :])
+
+        if getattr(self.cfg, "conformal_enabled", False) and getattr(self, "_coverage", None) is not None:
+            # ACI update: score the emulator's coverage (mu_bar vs actual) and adapt alpha,
+            # so the interval (and thus the cap) tightens/loosens over training.
+            score = self._coverage.coverage_score(preds, actuals).mean()
+            self._coverage.update(float(score.item()), step_size=self.cfg.conformal_step_size)
 
         pred_loss = calc_pred_loss(preds, actuals)
         train_loss = calc_train_loss(preds, targets)

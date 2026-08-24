@@ -48,13 +48,14 @@ warnings.filterwarnings("ignore")
 
 
 def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
-                            warm_start_en=None, pretrain_en_out=None,
+                            warm_start_en=None, pretrain_en_out=None, uncertainty_estimator="disagreement",
+                            reliability_log=None, conformal=False,
+                            conformal_threshold=1.0, conformal_safe_norm=2.0,
                             sigma_p=0.0, en_num_neurons=None, en_cell_type=None,
                             drift_delta=0.0, drift_k=8, drift_seed=42, drift_ramp=-1,
                             ta_lambda=0.0, ta_beta=0.0, ta_caution="soft",
                             ta_halt_threshold=1.0, ta_halt_penalty=10.0, ta_halt_temperature=None,
-            num_members=1, dr_sigma_max=0.0,
-            checkpoint_en=False):
+            num_members=1, dr_sigma_max=0.0, checkpoint_en=False, oracle=False):
     """Like stage0_repro.build_config, but also threads the error-injection knobs
     (parametric sigma_p; structural en_num_neurons/en_cell_type; distributional
     drift_delta/drift_k/drift_seed) into the repo Config. 
@@ -77,6 +78,15 @@ def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
         common["warm_start_en_path"] = warm_start_en
     if pretrain_en_out is not None:
         common["pretrain_en_out"] = pretrain_en_out
+    common["uncertainty_estimator"] = uncertainty_estimator
+    if reliability_log is not None:
+        common["reliability_log_path"] = reliability_log
+    if conformal:
+        common["conformal_enabled"] = True
+        common["conformal_width_threshold"] = conformal_threshold
+        common["conformal_safe_norm"] = conformal_safe_norm
+    if oracle:
+        common["oracle"] = True
     if coadapt is not None:
         common["coadapt"] = coadapt
     if en_num_neurons is not None:
@@ -116,7 +126,10 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
             drift_ramp=-1, seed=0, ta_lambda=0.0, ta_beta=0.0, ta_caution="soft",
             ta_halt_threshold=1.0, ta_halt_penalty=10.0, ta_halt_temperature=None,
             num_members=1, dr_sigma_max=0.0,
-            checkpoint_en=False, warm_start_en=None, pretrain_en_out=None):
+            checkpoint_en=False, warm_start_en=None, pretrain_en_out=None,
+            uncertainty_estimator="disagreement", reliability_log=None,
+            conformal=False, conformal_threshold=1.0, conformal_safe_norm=2.0,
+            oracle=False):
     torch.manual_seed(seed)   # reproducible init per (config, seed)
     desc, recover_supported = LESIONS[lesion_key]
     if recover and not recover_supported:
@@ -149,9 +162,18 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
         ta_caution=ta_caution, ta_halt_threshold=ta_halt_threshold,
         ta_halt_penalty=ta_halt_penalty, ta_halt_temperature=ta_halt_temperature,
         warm_start_en=warm_start_en, pretrain_en_out=pretrain_en_out,
+        uncertainty_estimator=uncertainty_estimator,
+        reliability_log=reliability_log,
+        conformal=conformal, conformal_threshold=conformal_threshold,
+        conformal_safe_norm=conformal_safe_norm,
+        oracle=oracle,
     )
 
-    if dr_sigma_max and dr_sigma_max > 0.0:
+    if oracle:
+        # B0: EN replaced by the true mRNN (upper bound, Delta=0 by construction).
+        from oracle import OracleCoProc
+        coproc = OracleCoProc(cfg, log_dir=log_dir, recycle_thresh=1)
+    elif dr_sigma_max and dr_sigma_max > 0.0:
         # Domain-randomized emulator (B2): CPN trains against a range of
         # per-trial parametric perturbations of the EN.
         from domain_random import DomainRandomizedCoProc
@@ -235,6 +257,24 @@ def main():
                    help="Distributional: drift subspace dimensionality. Default 8.")
     p.add_argument("--drift-seed", type=int, default=42,
                    help="Distributional: drift direction seed. Default 42.")
+    p.add_argument("--oracle", action="store_true",
+                   help="B0: replace the EN with the true mRNN (upper bound; Delta=0 by "
+                        "construction). Skips EN pre-training (the oracle is already perfect).")
+    p.add_argument("--conformal", action="store_true",
+                   help="B6: enable the ACI conformal amplitude cap (task 4.2) on the "
+                        "co-processor stim.")
+    p.add_argument("--conformal-threshold", type=float, default=1.0,
+                   help="Cap when the conformal interval exceeds this width (calibrate ~ c*W_0).")
+    p.add_argument("--conformal-safe-norm", type=float, default=2.0,
+                   help="Capped stim L2 norm when the interval is wide (~ amp-at-k damage limit).")
+    p.add_argument("--reliability-log", default=None,
+                   help="Write (ensemble uncertainty, emulator error) pairs at eval to this "
+                        "path, for the H4 reliability diagram (analysis.py --do reliability).")
+    p.add_argument("--uncertainty-estimator", default="disagreement",
+                   choices=["disagreement", "max_frobenius", "single_var", "mc_dropout"],
+                   help="Ensemble uncertainty estimator for the trust-aware lambda term "
+                        "(B4/B5). max_frobenius/single_var add trained variance heads; "
+                        "mc_dropout adds dropout + stochastic passes.")
     p.add_argument("--pretrain-en-out", default=None,
                    help="EN-only mode: train the EN to convergence, save it to this path, "
                         "then stop before any CPN training. Run once per lesion with "
@@ -340,6 +380,10 @@ def main():
             num_members=args.num_members, dr_sigma_max=args.dr_sigma_max,
             checkpoint_en=args.checkpoint_en, warm_start_en=args.warm_start_en,
             pretrain_en_out=args.pretrain_en_out,
+            uncertainty_estimator=args.uncertainty_estimator,
+            reliability_log=args.reliability_log,
+            conformal=args.conformal, conformal_threshold=args.conformal_threshold,
+            conformal_safe_norm=args.conformal_safe_norm, oracle=args.oracle,
         )
 
     if not args.baseline_only:

@@ -51,6 +51,13 @@ class Config:
     stim_ua_per_unit: float = None   # calibrate the Shannon damage proxy; None = default (trend-valid)
     warm_start_en_path: typing.Optional[str] = None   # load a converged EN to skip most pre-training
     pretrain_en_out: typing.Optional[str] = None      # EN-only mode: save the converged EN here, then stop
+    uncertainty_estimator: str = "disagreement"        # disagreement | max_frobenius | single_var | mc_dropout
+    reliability_log_path: typing.Optional[str] = None  # write (uncertainty, emulator error) pairs at eval, for H4 reliability diagrams
+    conformal_enabled: bool = False                    # B6: gate stim amplitude by the ACI conformal interval
+    conformal_width_threshold: float = 1.0             # cap when interval W_t exceeds this (calibrate ~ c*W_0)
+    conformal_safe_norm: float = 2.0                   # capped stim L2 norm (~ the amp-at-k damage limit)
+    conformal_step_size: float = 0.05                  # ACI alpha step size
+    oracle: bool = False                               # B0: replace the EN with the true mRNN
     # Trust-aware training knobs (L = MSE + ta_lambda*u + ta_beta*C_safety).
     # Defaults (0.0 / soft) reproduce vanilla B1 exactly.
     ta_lambda: float = 0.0          # uncertainty-penalty weight (needs an ensemble EN)
@@ -209,6 +216,13 @@ def get(
     stim_ua_per_unit=None,
     warm_start_en_path=None,
     pretrain_en_out=None,
+    uncertainty_estimator="disagreement",
+    reliability_log_path=None,
+    conformal_enabled=False,
+    conformal_width_threshold=1.0,
+    conformal_safe_norm=2.0,
+    conformal_step_size=0.05,
+    oracle=False,
     ta_lambda=0.0,
     ta_beta=0.0,
     ta_caution="soft",
@@ -396,6 +410,13 @@ def get(
         stim_ua_per_unit=stim_ua_per_unit,
         warm_start_en_path=warm_start_en_path,
         pretrain_en_out=pretrain_en_out,
+        uncertainty_estimator=uncertainty_estimator,
+        reliability_log_path=reliability_log_path,
+        conformal_enabled=conformal_enabled,
+        conformal_width_threshold=conformal_width_threshold,
+        conformal_safe_norm=conformal_safe_norm,
+        conformal_step_size=conformal_step_size,
+        oracle=oracle,
         ta_lambda=ta_lambda,
         ta_beta=ta_beta,
         ta_halt_temperature=ta_halt_temperature,

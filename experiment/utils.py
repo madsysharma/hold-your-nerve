@@ -1,6 +1,18 @@
 import math
 from torch.utils.checkpoint import checkpoint
 
+
+def _apply_heads(model, out, ht):
+    """Optional variance head + output dropout, attached externally (see
+    WiredEnsembleEN). No-ops unless the ensemble enabled them for the chosen
+    uncertainty estimator, so the default single-head path is unchanged."""
+    if getattr(model, "predict_variance", False):
+        model.last_logvar = model.fc_var(ht)      # (batch, out_dim), side-channel
+    drop = getattr(model, "_drop", None)
+    if drop is not None:
+        out = drop(out)                           # MC-dropout: toggled train() at inference
+    return out
+
 import torch
 from torch import nn
 from scipy.io import loadmat
@@ -258,14 +270,14 @@ class LSTMModel(nn.Module):
 
         # Gradient checkpointing (opt-in via .use_checkpoint) recomputes the step's
         # internal gate activations in backward instead of storing them for every
-        # timestep: the big memory win under an M-member ensemble rollout. State is
+        # timestep -- the big memory win under an M-member ensemble rollout. State is
         # threaded explicitly so numerics/gradients are identical to the plain path.
         if getattr(self, "use_checkpoint", False) and torch.is_grad_enabled():
             out, ht, ct = checkpoint(self._step, x_t, self.ht, self.ct, use_reentrant=False)
         else:
             out, ht, ct = self._step(x_t, self.ht, self.ct)
         self.ht, self.ct = ht, ct
-        return out
+        return _apply_heads(self, out, ht)
 
 
 class GRUModel(nn.Module):
@@ -336,7 +348,7 @@ class GRUModel(nn.Module):
         self._opt.zero_grad()
 
     def _step(self, x_t, ht):
-        """Pure GRU step (no self.* mutation): safe to checkpoint."""
+        """Pure GRU step (no self.* mutation) -- safe to checkpoint."""
         HS = self.num_neurons
         gates_x = x_t @ self.W
         gates_h = ht @ self.U
@@ -367,7 +379,7 @@ class GRUModel(nn.Module):
         else:
             out, ht = self._step(x_t, self.ht)
         self.ht = ht
-        return out
+        return _apply_heads(self, out, ht)
 
 
 class VanillaRNNModel(nn.Module):
@@ -433,7 +445,7 @@ class VanillaRNNModel(nn.Module):
         self._opt.zero_grad()
 
     def _step(self, x_t, ht):
-        """Pure vanilla-RNN step (no self.* mutation): safe to checkpoint."""
+        """Pure vanilla-RNN step (no self.* mutation) -- safe to checkpoint."""
         ht = torch.tanh(x_t @ self.W + ht @ self.U + self.bias)
         out = self.fc(self.activation_func(ht))
         return out, ht
@@ -453,7 +465,7 @@ class VanillaRNNModel(nn.Module):
         else:
             out, ht = self._step(x_t, self.ht)
         self.ht = ht
-        return out
+        return _apply_heads(self, out, ht)
 
 
 def trunc_to_trial_end(data, trial_end):

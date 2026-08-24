@@ -87,8 +87,11 @@ class WiredEnsembleEN(nn.Module):
                     gen = torch.Generator().manual_seed(base_seed + i)
                     with torch.no_grad():
                         for prm in en_i.parameters():
+                            # .item() keeps the scale a Python float: the CPU
+                            # generator stays reproducible across devices, and a
+                            # CPU tensor never multiplies a CUDA one.
                             noise = torch.randn(prm.shape, generator=gen) * (
-                                warm_start_jitter * prm.detach().std())
+                                warm_start_jitter * prm.detach().std().item())
                             prm.add_(noise.to(prm.device))
             self.members.append(en_i)
 

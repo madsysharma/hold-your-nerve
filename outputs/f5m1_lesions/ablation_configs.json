@@ -1,0 +1,1034 @@
+[
+  {
+    "run_id": "abl_lambda_0.0_none.clean.s42",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 0.0,
+    "ta_lambda": 0.0
+  },
+  {
+    "run_id": "abl_lambda_0.1_none.clean.s42",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 0.1,
+    "ta_lambda": 0.1
+  },
+  {
+    "run_id": "abl_lambda_1.0_none.clean.s42",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 1.0,
+    "ta_lambda": 1.0
+  },
+  {
+    "run_id": "abl_lambda_10.0_none.clean.s42",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 10.0,
+    "ta_lambda": 10.0
+  },
+  {
+    "run_id": "abl_lambda_100.0_none.clean.s42",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 100.0,
+    "ta_lambda": 100.0
+  },
+  {
+    "run_id": "abl_beta_0.0_none.clean.s42",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "beta",
+    "ablation_value": 0.0,
+    "extra_flags": [
+      "--ta-beta",
+      0.0
+    ]
+  },
+  {
+    "run_id": "abl_beta_0.5_none.clean.s42",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "beta",
+    "ablation_value": 0.5,
+    "extra_flags": [
+      "--ta-beta",
+      0.5
+    ]
+  },
+  {
+    "run_id": "abl_M_2_none.clean.s42",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 2,
+    "extra_flags": [
+      "--num-members",
+      2
+    ]
+  },
+  {
+    "run_id": "abl_M_3_none.clean.s42",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 3,
+    "extra_flags": [
+      "--num-members",
+      3
+    ]
+  },
+  {
+    "run_id": "abl_M_5_none.clean.s42",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 5,
+    "extra_flags": [
+      "--num-members",
+      5
+    ]
+  },
+  {
+    "run_id": "abl_M_10_none.clean.s42",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 10,
+    "extra_flags": [
+      "--num-members",
+      10
+    ]
+  },
+  {
+    "run_id": "abl_caution_soft_none.clean.s42",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "caution",
+    "ablation_value": "soft"
+  },
+  {
+    "run_id": "abl_caution_hard_none.clean.s42",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B5",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "caution",
+    "ablation_value": "hard"
+  },
+  {
+    "run_id": "abl_lambda_0.0_none.clean.s101",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 0.0,
+    "ta_lambda": 0.0
+  },
+  {
+    "run_id": "abl_lambda_0.1_none.clean.s101",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 0.1,
+    "ta_lambda": 0.1
+  },
+  {
+    "run_id": "abl_lambda_1.0_none.clean.s101",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 1.0,
+    "ta_lambda": 1.0
+  },
+  {
+    "run_id": "abl_lambda_10.0_none.clean.s101",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 10.0,
+    "ta_lambda": 10.0
+  },
+  {
+    "run_id": "abl_lambda_100.0_none.clean.s101",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 100.0,
+    "ta_lambda": 100.0
+  },
+  {
+    "run_id": "abl_beta_0.0_none.clean.s101",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "beta",
+    "ablation_value": 0.0,
+    "extra_flags": [
+      "--ta-beta",
+      0.0
+    ]
+  },
+  {
+    "run_id": "abl_beta_0.5_none.clean.s101",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "beta",
+    "ablation_value": 0.5,
+    "extra_flags": [
+      "--ta-beta",
+      0.5
+    ]
+  },
+  {
+    "run_id": "abl_M_2_none.clean.s101",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 2,
+    "extra_flags": [
+      "--num-members",
+      2
+    ]
+  },
+  {
+    "run_id": "abl_M_3_none.clean.s101",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 3,
+    "extra_flags": [
+      "--num-members",
+      3
+    ]
+  },
+  {
+    "run_id": "abl_M_5_none.clean.s101",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 5,
+    "extra_flags": [
+      "--num-members",
+      5
+    ]
+  },
+  {
+    "run_id": "abl_M_10_none.clean.s101",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 10,
+    "extra_flags": [
+      "--num-members",
+      10
+    ]
+  },
+  {
+    "run_id": "abl_caution_soft_none.clean.s101",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "caution",
+    "ablation_value": "soft"
+  },
+  {
+    "run_id": "abl_caution_hard_none.clean.s101",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B5",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "caution",
+    "ablation_value": "hard"
+  },
+  {
+    "run_id": "abl_lambda_0.0_none.clean.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 0.0,
+    "ta_lambda": 0.0
+  },
+  {
+    "run_id": "abl_lambda_0.1_none.clean.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 0.1,
+    "ta_lambda": 0.1
+  },
+  {
+    "run_id": "abl_lambda_1.0_none.clean.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 1.0,
+    "ta_lambda": 1.0
+  },
+  {
+    "run_id": "abl_lambda_10.0_none.clean.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 10.0,
+    "ta_lambda": 10.0
+  },
+  {
+    "run_id": "abl_lambda_100.0_none.clean.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 100.0,
+    "ta_lambda": 100.0
+  },
+  {
+    "run_id": "abl_beta_0.0_none.clean.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "beta",
+    "ablation_value": 0.0,
+    "extra_flags": [
+      "--ta-beta",
+      0.0
+    ]
+  },
+  {
+    "run_id": "abl_beta_0.5_none.clean.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "beta",
+    "ablation_value": 0.5,
+    "extra_flags": [
+      "--ta-beta",
+      0.5
+    ]
+  },
+  {
+    "run_id": "abl_M_2_none.clean.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 2,
+    "extra_flags": [
+      "--num-members",
+      2
+    ]
+  },
+  {
+    "run_id": "abl_M_3_none.clean.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 3,
+    "extra_flags": [
+      "--num-members",
+      3
+    ]
+  },
+  {
+    "run_id": "abl_M_5_none.clean.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 5,
+    "extra_flags": [
+      "--num-members",
+      5
+    ]
+  },
+  {
+    "run_id": "abl_M_10_none.clean.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 10,
+    "extra_flags": [
+      "--num-members",
+      10
+    ]
+  },
+  {
+    "run_id": "abl_caution_soft_none.clean.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "caution",
+    "ablation_value": "soft"
+  },
+  {
+    "run_id": "abl_caution_hard_none.clean.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B5",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "caution",
+    "ablation_value": "hard"
+  },
+  {
+    "run_id": "abl_lambda_0.0_parametric.sigma_p_0.2.s42",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 0.0,
+    "ta_lambda": 0.0
+  },
+  {
+    "run_id": "abl_lambda_0.1_parametric.sigma_p_0.2.s42",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 0.1,
+    "ta_lambda": 0.1
+  },
+  {
+    "run_id": "abl_lambda_1.0_parametric.sigma_p_0.2.s42",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 1.0,
+    "ta_lambda": 1.0
+  },
+  {
+    "run_id": "abl_lambda_10.0_parametric.sigma_p_0.2.s42",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 10.0,
+    "ta_lambda": 10.0
+  },
+  {
+    "run_id": "abl_lambda_100.0_parametric.sigma_p_0.2.s42",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 100.0,
+    "ta_lambda": 100.0
+  },
+  {
+    "run_id": "abl_beta_0.0_parametric.sigma_p_0.2.s42",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "beta",
+    "ablation_value": 0.0,
+    "extra_flags": [
+      "--ta-beta",
+      0.0
+    ]
+  },
+  {
+    "run_id": "abl_beta_0.5_parametric.sigma_p_0.2.s42",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "beta",
+    "ablation_value": 0.5,
+    "extra_flags": [
+      "--ta-beta",
+      0.5
+    ]
+  },
+  {
+    "run_id": "abl_M_2_parametric.sigma_p_0.2.s42",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 2,
+    "extra_flags": [
+      "--num-members",
+      2
+    ]
+  },
+  {
+    "run_id": "abl_M_3_parametric.sigma_p_0.2.s42",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 3,
+    "extra_flags": [
+      "--num-members",
+      3
+    ]
+  },
+  {
+    "run_id": "abl_M_5_parametric.sigma_p_0.2.s42",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 5,
+    "extra_flags": [
+      "--num-members",
+      5
+    ]
+  },
+  {
+    "run_id": "abl_M_10_parametric.sigma_p_0.2.s42",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 10,
+    "extra_flags": [
+      "--num-members",
+      10
+    ]
+  },
+  {
+    "run_id": "abl_caution_soft_parametric.sigma_p_0.2.s42",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "caution",
+    "ablation_value": "soft"
+  },
+  {
+    "run_id": "abl_caution_hard_parametric.sigma_p_0.2.s42",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B5",
+    "seed": 42,
+    "status": "pending",
+    "ablation": "caution",
+    "ablation_value": "hard"
+  },
+  {
+    "run_id": "abl_lambda_0.0_parametric.sigma_p_0.2.s101",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 0.0,
+    "ta_lambda": 0.0
+  },
+  {
+    "run_id": "abl_lambda_0.1_parametric.sigma_p_0.2.s101",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 0.1,
+    "ta_lambda": 0.1
+  },
+  {
+    "run_id": "abl_lambda_1.0_parametric.sigma_p_0.2.s101",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 1.0,
+    "ta_lambda": 1.0
+  },
+  {
+    "run_id": "abl_lambda_10.0_parametric.sigma_p_0.2.s101",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 10.0,
+    "ta_lambda": 10.0
+  },
+  {
+    "run_id": "abl_lambda_100.0_parametric.sigma_p_0.2.s101",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 100.0,
+    "ta_lambda": 100.0
+  },
+  {
+    "run_id": "abl_beta_0.0_parametric.sigma_p_0.2.s101",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "beta",
+    "ablation_value": 0.0,
+    "extra_flags": [
+      "--ta-beta",
+      0.0
+    ]
+  },
+  {
+    "run_id": "abl_beta_0.5_parametric.sigma_p_0.2.s101",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "beta",
+    "ablation_value": 0.5,
+    "extra_flags": [
+      "--ta-beta",
+      0.5
+    ]
+  },
+  {
+    "run_id": "abl_M_2_parametric.sigma_p_0.2.s101",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 2,
+    "extra_flags": [
+      "--num-members",
+      2
+    ]
+  },
+  {
+    "run_id": "abl_M_3_parametric.sigma_p_0.2.s101",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 3,
+    "extra_flags": [
+      "--num-members",
+      3
+    ]
+  },
+  {
+    "run_id": "abl_M_5_parametric.sigma_p_0.2.s101",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 5,
+    "extra_flags": [
+      "--num-members",
+      5
+    ]
+  },
+  {
+    "run_id": "abl_M_10_parametric.sigma_p_0.2.s101",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 10,
+    "extra_flags": [
+      "--num-members",
+      10
+    ]
+  },
+  {
+    "run_id": "abl_caution_soft_parametric.sigma_p_0.2.s101",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "caution",
+    "ablation_value": "soft"
+  },
+  {
+    "run_id": "abl_caution_hard_parametric.sigma_p_0.2.s101",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B5",
+    "seed": 101,
+    "status": "pending",
+    "ablation": "caution",
+    "ablation_value": "hard"
+  },
+  {
+    "run_id": "abl_lambda_0.0_parametric.sigma_p_0.2.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 0.0,
+    "ta_lambda": 0.0
+  },
+  {
+    "run_id": "abl_lambda_0.1_parametric.sigma_p_0.2.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 0.1,
+    "ta_lambda": 0.1
+  },
+  {
+    "run_id": "abl_lambda_1.0_parametric.sigma_p_0.2.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 1.0,
+    "ta_lambda": 1.0
+  },
+  {
+    "run_id": "abl_lambda_10.0_parametric.sigma_p_0.2.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 10.0,
+    "ta_lambda": 10.0
+  },
+  {
+    "run_id": "abl_lambda_100.0_parametric.sigma_p_0.2.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "lambda",
+    "ablation_value": 100.0,
+    "ta_lambda": 100.0
+  },
+  {
+    "run_id": "abl_beta_0.0_parametric.sigma_p_0.2.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "beta",
+    "ablation_value": 0.0,
+    "extra_flags": [
+      "--ta-beta",
+      0.0
+    ]
+  },
+  {
+    "run_id": "abl_beta_0.5_parametric.sigma_p_0.2.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "beta",
+    "ablation_value": 0.5,
+    "extra_flags": [
+      "--ta-beta",
+      0.5
+    ]
+  },
+  {
+    "run_id": "abl_M_2_parametric.sigma_p_0.2.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 2,
+    "extra_flags": [
+      "--num-members",
+      2
+    ]
+  },
+  {
+    "run_id": "abl_M_3_parametric.sigma_p_0.2.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 3,
+    "extra_flags": [
+      "--num-members",
+      3
+    ]
+  },
+  {
+    "run_id": "abl_M_5_parametric.sigma_p_0.2.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 5,
+    "extra_flags": [
+      "--num-members",
+      5
+    ]
+  },
+  {
+    "run_id": "abl_M_10_parametric.sigma_p_0.2.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "members",
+    "ablation_value": 10,
+    "extra_flags": [
+      "--num-members",
+      10
+    ]
+  },
+  {
+    "run_id": "abl_caution_soft_parametric.sigma_p_0.2.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B4",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "caution",
+    "ablation_value": "soft"
+  },
+  {
+    "run_id": "abl_caution_hard_parametric.sigma_p_0.2.s2024",
+    "lesion": "F5_M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B5",
+    "seed": 2024,
+    "status": "pending",
+    "ablation": "caution",
+    "ablation_value": "hard"
+  }
+]

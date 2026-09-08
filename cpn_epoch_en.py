@@ -5,6 +5,10 @@ from cpn_utils import CPNENStats, calc_pred_loss, EpochType
 from experiment import utils
 from error_injection import ErrorInjector
 
+# Set by callers (stage0_repro.py, stage1_error_injection.py, stage2_ensemble*.py)
+# via `--en-ready-floor`; None means "use the hard-coded 0.0003 default below".
+EN_READY_FLOOR = None
+
 
 class CPNEpochEN:
     def __init__(self, en, opt_en, cpn, opt_cpn, cfg):
@@ -192,7 +196,8 @@ class CPNEpochEN:
             en_is_ready = False
             self.reset_period()
         elif (
-            vl < max(0.02 * self.recent_train_loss, 0.0003)
+            vl < max(0.02 * self.recent_train_loss,
+                     EN_READY_FLOOR if EN_READY_FLOOR is not None else 0.0003)
             and self.checkpoint_eidx > 100
         ) or self.checkpoint_eidx >= 3000:
             en_is_ready = True

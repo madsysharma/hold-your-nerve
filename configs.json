@@ -1,0 +1,632 @@
+[
+  {
+    "run_id": "run_0000",
+    "lesion": "M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0001",
+    "lesion": "M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0002",
+    "lesion": "M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0003",
+    "lesion": "M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0004",
+    "lesion": "M1",
+    "error_axis": "none",
+    "severity": "clean",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0005",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.05",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0006",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.05",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0007",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.05",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0008",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.05",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0009",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.05",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0010",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.1",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0011",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.1",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0012",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.1",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0013",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.1",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0014",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.1",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0015",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0016",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0017",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0018",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0019",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.2",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0020",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.4",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0021",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.4",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0022",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.4",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0023",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.4",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0024",
+    "lesion": "M1",
+    "error_axis": "parametric",
+    "severity": "sigma_p_0.4",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0025",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.05",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0026",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.05",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0027",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.05",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0028",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.05",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0029",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.05",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0030",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.1",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0031",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.1",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0032",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.1",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0033",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.1",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0034",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.1",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0035",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.2",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0036",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.2",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0037",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.2",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0038",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.2",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0039",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.2",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0040",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.4",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0041",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.4",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0042",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.4",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0043",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.4",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0044",
+    "lesion": "M1",
+    "error_axis": "distributional",
+    "severity": "delta_0.4",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0045",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_20",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0046",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_20",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0047",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_20",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0048",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_20",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0049",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_20",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0050",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_40",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0051",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_40",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0052",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_40",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0053",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_40",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0054",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_40",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0055",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_160",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0056",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_160",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0057",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_160",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0058",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_160",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0059",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "cap_160",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0060",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "topo_gru",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0061",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "topo_gru",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0062",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "topo_gru",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0063",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "topo_gru",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0064",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "topo_gru",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0065",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "topo_rnn",
+    "baseline": "B3",
+    "seed": 42,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0066",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "topo_rnn",
+    "baseline": "B3",
+    "seed": 101,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0067",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "topo_rnn",
+    "baseline": "B3",
+    "seed": 2024,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0068",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "topo_rnn",
+    "baseline": "B3",
+    "seed": 888,
+    "status": "pending"
+  },
+  {
+    "run_id": "run_0069",
+    "lesion": "M1",
+    "error_axis": "structural",
+    "severity": "topo_rnn",
+    "baseline": "B3",
+    "seed": 999,
+    "status": "pending"
+  }
+]

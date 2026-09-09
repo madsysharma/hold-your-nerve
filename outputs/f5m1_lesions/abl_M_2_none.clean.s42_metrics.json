@@ -1,0 +1,10 @@
+{
+  "f5m1": {
+    "eta_true": 0,
+    "eta_hat": null,
+    "delta": null,
+    "cvar": null,
+    "damage_frac": null,
+    "max_recov": 0
+  }
+}

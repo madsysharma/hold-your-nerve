@@ -160,10 +160,10 @@ class CPNEpochEN:
         else:
             self.recent_pred_loss = pred_loss.item()
 
-            back_params = list(self.en.parameters())
-            pred_loss.backward(inputs=back_params)
-
-            self.opt_en.step()
+            back_params = [p for p in self.en.parameters() if p.requires_grad]
+            if back_params:                 # oracle EN is the true brain: nothing to train
+                pred_loss.backward(inputs=back_params)
+                self.opt_en.step()
 
     def finish(self, loss_history, is_validation, reused_data=False):
 

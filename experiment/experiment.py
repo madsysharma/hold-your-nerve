@@ -415,6 +415,7 @@ class Experiment:
             actuals = []
 
             if hasattr(self.coproc.en, "set_next_din"):   # B0 oracle: keep the true-brain EN in sync
+                self.coproc.en.brain.load_state_dict(self.mike.state_dict())   # track lesion/recovery/coadapt
                 self.coproc.en.reset()
                 self.coproc.en.init_step(din[:, 0, :].T)
 
@@ -441,6 +442,8 @@ class Experiment:
 
                 if hasattr(self.coproc.en, "set_next_din"):
                     self.coproc.en.set_next_din(din[:, tidx + 1, :].T)
+                if getattr(self.cfg, "optimism", 0.0) > 0.0 and hasattr(self.coproc, "cpn_epoch"):
+                    self.coproc.cpn_epoch._healthy_ref = dout[:, tidx + 1, :]   # optimism healthy ref
                 stim = self._coproc_forward(obs, en_obs_override=en_obs_override)
 
                 # new_stim will be cloned in here, to prevent accidentally backpropagating through the "brain", aka mike.

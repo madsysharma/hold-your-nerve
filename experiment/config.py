@@ -58,6 +58,7 @@ class Config:
     conformal_safe_norm: float = 2.0                   # capped stim L2 norm (~ the amp-at-k damage limit)
     conformal_step_size: float = 0.05                  # ACI alpha step size
     oracle: bool = False                               # B0: replace the EN with the true mRNN
+    optimism: float = 0.0                              # optimism-biased EN: pull prediction gamma toward healthy ref
     # Trust-aware training knobs (L = MSE + ta_lambda*u + ta_beta*C_safety).
     # Defaults (0.0 / soft) reproduce vanilla B1 exactly.
     ta_lambda: float = 0.0          # uncertainty-penalty weight (needs an ensemble EN)
@@ -222,6 +223,7 @@ def get(
     conformal_safe_norm=2.0,
     conformal_step_size=0.05,
     oracle=False,
+    optimism=0.0,
     ta_lambda=0.0,
     ta_beta=0.0,
     ta_caution="soft",
@@ -415,6 +417,7 @@ def get(
         conformal_safe_norm=conformal_safe_norm,
         conformal_step_size=conformal_step_size,
         oracle=oracle,
+        optimism=optimism,
         ta_lambda=ta_lambda,
         ta_beta=ta_beta,
         ta_caution=ta_caution,

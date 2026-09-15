@@ -38,6 +38,7 @@ class CPNEpochCPN:
         self.reg_stim_weight = None
         self.stims = []
         self.uncerts = []   # per-step ensemble uncertainty (in-graph), for the lambda term
+        self._healthy_ref = None   # per-step healthy target for the optimism-biased EN
         self.recent_apparent_task_loss = None   # eta_hat's task loss (EN preds vs targets)
         self.recent_stim_cost_samples = None    # per-step per-batch stim costs, for CVaR
         self.recent_stim_raw = None             # (batch, T, stim_dim) raw stims, for the damage-proxy fraction
@@ -112,6 +113,13 @@ class CPNEpochCPN:
         new_obs_en = brain_data[0]
         en_in = torch.cat((new_obs_en, new_stim, brain_data[-1]), axis=1)
         cur_pred = self.en(en_in)
+
+        # Optimism-biased emulator (constructed exploitation benchmark): pull the EN's
+        # prediction a fraction gamma toward the healthy reference so it over-reports
+        # recovery; the CPN learns to exploit -> eta_hat > eta. Gated (optimism=0 = no-op).
+        _g = getattr(self.cfg, "optimism", 0.0)
+        if _g > 0.0 and getattr(self, "_healthy_ref", None) is not None:
+            cur_pred = (1.0 - _g) * cur_pred + _g * self._healthy_ref.detach()
 
         # Trust-aware: if the EN is an ensemble adapter, capture this step's
         # uncertainty IN-GRAPH so the lambda penalty can train the CPN to avoid

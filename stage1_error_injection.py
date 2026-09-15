@@ -54,7 +54,7 @@ def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
                             sigma_p=0.0, en_num_neurons=None, en_cell_type=None,
                             drift_delta=0.0, drift_k=8, drift_seed=42, drift_ramp=-1,
                             ta_lambda=0.0, ta_beta=0.0, ta_caution="soft",
-                            ta_halt_threshold=1.0, ta_halt_penalty=10.0, num_members=1, dr_sigma_max=0.0, checkpoint_en=False, oracle=False):
+                            ta_halt_threshold=1.0, ta_halt_penalty=10.0, num_members=1, dr_sigma_max=0.0, checkpoint_en=False, oracle=False, optimism=0.0, stim_ua_per_unit=None):
     """Like stage0_repro.build_config, but also threads the error-injection knobs
     (parametric sigma_p; structural en_num_neurons/en_cell_type; distributional
     drift_delta/drift_k/drift_seed) into the repo Config. 
@@ -77,6 +77,10 @@ def build_config_with_error(lesion_key, device, recover, coadapt, stim_sigma,
     if pretrain_en_out is not None:
         common["pretrain_en_out"] = pretrain_en_out
     common["uncertainty_estimator"] = uncertainty_estimator
+    if optimism and optimism > 0.0:
+        common["optimism"] = optimism
+    if stim_ua_per_unit is not None:
+        common["stim_ua_per_unit"] = stim_ua_per_unit
     if reliability_log is not None:
         common["reliability_log_path"] = reliability_log
     if conformal:
@@ -126,7 +130,7 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
             checkpoint_en=False, warm_start_en=None, pretrain_en_out=None,
             uncertainty_estimator="disagreement", reliability_log=None,
             conformal=False, conformal_threshold=1.0, conformal_safe_norm=2.0,
-            oracle=False):
+            oracle=False, optimism=0.0, stim_ua_per_unit=None):
     torch.manual_seed(seed)   # reproducible init per (config, seed)
     desc, recover_supported = LESIONS[lesion_key]
     if recover and not recover_supported:
@@ -164,6 +168,8 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
         conformal=conformal, conformal_threshold=conformal_threshold,
         conformal_safe_norm=conformal_safe_norm,
         oracle=oracle,
+        optimism=optimism,
+        stim_ua_per_unit=stim_ua_per_unit,
     )
 
     if oracle:
@@ -210,6 +216,7 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
     delta = loss_history.gap_at_max_recov
     cvar_val = loss_history.cvar_at_max_recov
     dmg = loss_history.damage_frac_at_max_recov
+    amp_p99 = loss_history.amp_p99_at_max_recov
     eta_hat_s = f"{eta_hat * 100:.1f}%" if eta_hat is not None else "n/a"
     delta_s = f"{delta * 100:+.1f}pp" if delta is not None else "n/a"
     cvar_s = f"{cvar_val:.4e}" if cvar_val is not None else "n/a"
@@ -230,6 +237,7 @@ def run_one(lesion_key, device, log_dir, recover, coadapt, stim_sigma,
         "delta": delta,
         "cvar": cvar_val,
         "damage_frac": dmg,
+        "amp_p99": amp_p99,
         "max_recov": max_recov,
     }
 
@@ -267,6 +275,12 @@ def main():
     p.add_argument("--reliability-log", default=None,
                    help="Write (ensemble uncertainty, emulator error) pairs at eval to this "
                         "path, for the H4 reliability diagram (analysis.py --do reliability).")
+    p.add_argument("--optimism", type=float, default=0.0,
+                   help="Optimism-biased EN (exploitation benchmark): pull EN prediction this "
+                        "fraction toward the healthy reference (0=off).")
+    p.add_argument("--stim-ua-per-unit", type=float, default=None,
+                   help="Calibrated Shannon damage threshold (uA per CPN unit); None = uncalibrated. "
+                        "Get the value from calibrate.py on a B1 run of the SAME lesion.")
     p.add_argument("--uncertainty-estimator", default="disagreement",
                    choices=["disagreement", "max_frobenius", "single_var", "mc_dropout"],
                    help="Ensemble uncertainty estimator for the trust-aware lambda term "
@@ -380,6 +394,7 @@ def main():
             reliability_log=args.reliability_log,
             conformal=args.conformal, conformal_threshold=args.conformal_threshold,
             conformal_safe_norm=args.conformal_safe_norm, oracle=args.oracle,
+            optimism=args.optimism, stim_ua_per_unit=args.stim_ua_per_unit,
         )
 
     if not args.baseline_only:

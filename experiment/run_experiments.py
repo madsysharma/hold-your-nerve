@@ -192,6 +192,8 @@ def build_command(config, opts, metrics_path, log_dir):
         cmd += ["--warm-start-en", opts.warm_start_en]
     if getattr(opts, "coadapt", "off") not in (None, "off"):
         cmd += ["--coadapt", opts.coadapt]   # brain co-adaptation during CPN training
+    if getattr(opts, "stim_ua_per_unit", None) is not None:
+        cmd += ["--stim-ua-per-unit", str(opts.stim_ua_per_unit)]   # calibrated damage_frac (per-lesion)
     if getattr(opts, "log_reliability", False):
         rel = os.path.join(opts.results_dir, f"{config['run_id']}_reliability.json")
         cmd += ["--reliability-log", rel]
@@ -202,7 +204,9 @@ def execute_single_run(config, opts):
     checkpoint = os.path.join(opts.results_dir, f"{config['run_id']}.json")
     if os.path.exists(checkpoint):
         with open(checkpoint) as f:
-            return json.load(f)
+            cached = json.load(f)
+        if cached.get("status") != "failed":   # replay real results; re-run failures
+            return cached
 
     base = config["baseline"]
     result = {**config}
@@ -266,6 +270,9 @@ def main():
     p.add_argument("--coadapt", nargs="?", const="on", default="off",
                    help="Pass through to stage1: 'on' enables brain co-adaptation "
                         "during CPN training (default off).")
+    p.add_argument("--stim-ua-per-unit", type=float, default=None,
+                   help="Calibrated damage threshold (uA/CPN unit), applied to all runs this "
+                        "invocation. Per-lesion: one invocation per lesion with calibrate.py's value.")
     p.add_argument("--log-reliability", action="store_true",
                    help="Log (uncertainty, emulator error) pairs per run for the H4 "
                         "reliability diagram (analysis.py --do reliability).")

@@ -1,0 +1,11 @@
+{
+  "run_id": "run_0013",
+  "lesion": "M1",
+  "error_axis": "structural",
+  "severity": "topo_rnn",
+  "baseline": "B5",
+  "seed": 42,
+  "status": "failed",
+  "ta_lambda": 0.3,
+  "error": "cpn.py\", line 43, in load_en_state_dict\n    raise RuntimeError(\nRuntimeError: warm-start EN at ens/en_m1.model does not match this run's EN architecture. A warm-start EN is specific to its lesion (observer input dim), en_num_neurons, and en_cell_type -- use one saved from a run with the SAME lesion and architecture. Underlying error: Error(s) in loading state_dict for StimModelRNN:\n\tsize mismatch for W: copying a param with shape torch.Size([37, 348]) from checkpoint, the shape in current model is torch.Size([37, 87]).\n\tsize mismatch for U: copying a param with shape torch.Size([87, 348]) from checkpoint, the shape in current model is torch.Size([87, 87]).\n\tsize mismatch for bias: copying a param with shape torch.Size([348]) from checkpoint, the shape in current model is torch.Size([87]).\n"
+}

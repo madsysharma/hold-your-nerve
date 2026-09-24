@@ -1,0 +1,11 @@
+{
+  "run_id": "run_0001",
+  "lesion": "M1",
+  "error_axis": "parametric",
+  "severity": "sigma_p_0.05",
+  "baseline": "B5",
+  "seed": 42,
+  "status": "failed",
+  "ta_lambda": 0.3,
+  "error": "timed out after 10800s"
+}

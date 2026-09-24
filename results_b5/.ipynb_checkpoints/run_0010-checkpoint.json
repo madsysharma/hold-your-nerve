@@ -1,0 +1,11 @@
+{
+  "run_id": "run_0010",
+  "lesion": "M1",
+  "error_axis": "structural",
+  "severity": "cap_40",
+  "baseline": "B5",
+  "seed": 42,
+  "status": "failed",
+  "ta_lambda": 0.3,
+  "error": "e. A warm-start EN is specific to its lesion (observer input dim), en_num_neurons, and en_cell_type -- use one saved from a run with the SAME lesion and architecture. Underlying error: Error(s) in loading state_dict for StimModelLSTM:\n\tsize mismatch for W: copying a param with shape torch.Size([37, 348]) from checkpoint, the shape in current model is torch.Size([37, 160]).\n\tsize mismatch for U: copying a param with shape torch.Size([87, 348]) from checkpoint, the shape in current model is torch.Size([40, 160]).\n\tsize mismatch for bias: copying a param with shape torch.Size([348]) from checkpoint, the shape in current model is torch.Size([160]).\n\tsize mismatch for fc.weight: copying a param with shape torch.Size([50, 87]) from checkpoint, the shape in current model is torch.Size([50, 40]).\n"
+}

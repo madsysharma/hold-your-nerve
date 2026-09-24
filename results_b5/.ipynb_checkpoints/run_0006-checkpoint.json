@@ -1,8 +1,8 @@
 {
-  "run_id": "run_0000",
+  "run_id": "run_0006",
   "lesion": "M1",
-  "error_axis": "none",
-  "severity": "clean",
+  "error_axis": "distributional",
+  "severity": "delta_0.1",
   "baseline": "B5",
   "seed": 42,
   "status": "failed",
